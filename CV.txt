@@ -1,0 +1,66 @@
+Curriculum Vitae
+       
+First-Name :	
+Last-Name :
+Address :
+    Street Name :
+    House Number :
+    City :
+    Country :
+Telephone Number :
+E-mail Address :
+
+Sex :
+Date of Birth :
+Nationality :
+
+Work Experience :
+	Workplace 1 :
+	    Dates :
+	    Occupation :
+        Main activities :
+	Workplace 2 :
+	    Dates :
+	    Occupation :
+        Main activities :
+	Workplace 3 :
+	    Dates :
+	    Occupation :
+        Main activities :
+
+Education and Training :
+	High school :
+	College/University :
+	    Subjects studied :
+	    Years studied :
+	Qualifications awarded :
+	Master 1 :
+	Master 2 :
+
+Personal Skills :
+	Communication skills :
+	Organizational / managerial skills :
+	Job-related skills :
+	Computer skills :
+	Other skills :
+	Driving license :
+
+Languages :
+	Mother Language :
+	Other Languages :
+	    Modern Language 1 :
+	        Level1 :
+	    Modern Language 2 :
+	        Level2 :
+
+Additional Information:
+    Publications :
+    Presentations :
+    Projects :
+    Conferences :
+    Honours and awards :
+    Memberships :
+
+Short Description :
+
+Hobbies :

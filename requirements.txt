@@ -1,0 +1,5 @@
+# CV-Personality App Dependencies
+# Python 3.10+ required (uses match-case statements)
+
+# Tkinter is included with Python standard library
+# No additional packages required
