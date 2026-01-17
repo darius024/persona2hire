@@ -1,0 +1,66 @@
+Curriculum Vitae
+       
+First-Name : Marcus
+Last-Name : Chen
+Address :
+    Street Name : 78 Riverside Drive
+    House Number : 5
+    City : Boston
+    Country : United States
+Telephone Number : +1 617 555 0123
+E-mail Address : marcus.chen@email.com
+
+Sex : M
+Date of Birth : 22.08.1988
+Nationality : American
+
+Work Experience :
+	Workplace 1 : BioMed Research Institute
+	    Dates : 01.01.2019 - current
+	    Occupation : Research Scientist
+        Main activities : laboratory experiments, data analysis, research publications, grant writing
+	Workplace 2 : PharmaCorp Inc
+	    Dates : 15.06.2014 - 31.12.2018
+	    Occupation : Laboratory Technician
+        Main activities : sample preparation, quality control, equipment maintenance, documentation
+	Workplace 3 : University Hospital
+	    Dates : 01.09.2012 - 01.06.2014
+	    Occupation : Research Assistant
+        Main activities : clinical trials support, patient data collection, lab work
+
+Education and Training :
+	High school : Lincoln High School
+	College/University : Massachusetts Institute of Technology
+	    Subjects studied : biology, chemistry, biochemistry, molecular biology
+	    Years studied : 4
+	Qualifications awarded : PhD Biochemistry, BSc Biology
+	Master 1 : MSc Molecular Biology
+	Master 2 :
+
+Personal Skills :
+	Communication skills : scientific writing, presentation skills, collaboration
+	Organizational / managerial skills : project coordination, lab management, mentoring
+	Job-related skills : data analysis, critical thinking, research methodology, lab techniques
+	Computer skills : R, Python, SPSS, Excel, lab information systems
+	Other skills : attention to detail, patience, scientific method
+	Driving license : yes
+
+Languages :
+	Mother Language : English
+	Other Languages :
+	    Modern Language 1 : Mandarin
+	        Level1 : C1
+	    Modern Language 2 : German
+	        Level2 : B1
+
+Additional Information:
+    Publications : 12 peer-reviewed papers in Nature, Science, Cell
+    Presentations : International Biochemistry Conference 2021, NIH Research Symposium
+    Projects : COVID-19 vaccine research, Cancer biomarker discovery
+    Conferences : ASBMB Annual Meeting, Gordon Research Conferences
+    Honours and awards : NIH Early Career Award, Best Paper Award 2020
+    Memberships : American Society for Biochemistry, American Chemical Society
+
+Short Description : methodical, curious, patient, analytical, dedicated, detail-oriented
+
+Hobbies : running, reading scientific journals, chess, photography, hiking, cooking
