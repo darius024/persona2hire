@@ -269,6 +269,9 @@ class MainWindow:
         self.listbox.pack(side=LEFT, fill=BOTH, expand=True)
         scrollbar.pack(side=RIGHT, fill=Y)
 
+        # Double-click to show personality analysis
+        self.listbox.bind("<Double-Button-1>", lambda e: self._show_personality())
+
         # Status label
         self.status_label = Label(
             frame,

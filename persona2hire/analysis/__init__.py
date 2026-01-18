@@ -4,6 +4,7 @@ from .job_analyzer import (
     analyze_job,
     analyze_jobs,
     get_score_breakdown,
+    get_skill_gaps,
     filter_candidates,
 )
 from .personality_analyzer import (
@@ -17,6 +18,7 @@ __all__ = [
     "analyze_job",
     "analyze_jobs",
     "get_score_breakdown",
+    "get_skill_gaps",
     "filter_candidates",
     "analyze_personality",
     "get_personality_percentages",

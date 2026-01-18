@@ -1,6 +1,5 @@
 """Personality analysis using Myers-Briggs Type Indicator (MBTI)."""
 
-import copy
 from ..data.personality import Domains, Hobbies, PersonalityTypes, BigFive
 
 

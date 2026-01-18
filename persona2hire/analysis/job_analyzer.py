@@ -26,17 +26,21 @@ WEIGHTS = {
     "additional": 5,  # Max 5 points for publications, awards, etc.
 }
 
+# Bonus for personality match (added on top of base 100)
+PERSONALITY_BONUS = 5  # Max 5 bonus points for matching personality type
 
-def analyze_job(person: dict, sector: str) -> float:
+
+def analyze_job(person: dict, sector: str, personality_type: str = None) -> float:
     """
     Analyze a person's fit for a specific job sector.
 
     Args:
         person: Dictionary containing CV data
         sector: Job sector key from JobSectors
+        personality_type: Optional pre-calculated MBTI type (for efficiency)
 
     Returns:
-        Total score for the person-sector match (0-100 scale)
+        Total score for the person-sector match (0-100+ scale, can exceed 100 with bonuses)
     """
     if sector not in JobSectors:
         return 0.0
@@ -58,6 +62,12 @@ def analyze_job(person: dict, sector: str) -> float:
         + soft_skills_score
         + additional_score
     )
+
+    # Add personality match bonus (innovative feature)
+    if personality_type is None:
+        personality_type = person.get("PersonalityTypeMB", "")
+    personality_bonus = _calculate_personality_bonus(personality_type, sector)
+    total_score += personality_bonus
 
     return round(total_score, 1)
 
@@ -210,6 +220,8 @@ def get_score_breakdown(person: dict, sector: str) -> dict:
     if sector not in JobSectors:
         return {}
 
+    personality_type = person.get("PersonalityTypeMB", "")
+
     return {
         "education": _calculate_education_score(person, sector),
         "work_experience": _calculate_work_score(person, sector),
@@ -217,13 +229,92 @@ def get_score_breakdown(person: dict, sector: str) -> dict:
         "languages": _calculate_language_score(person),
         "soft_skills": _calculate_soft_skills_score(person),
         "additional": _calculate_additional_score(person),
+        "personality_bonus": _calculate_personality_bonus(personality_type, sector),
         "max_education": WEIGHTS["education"],
         "max_work_experience": WEIGHTS["work_experience"],
         "max_skills": WEIGHTS["skills"],
         "max_languages": WEIGHTS["languages"],
         "max_soft_skills": WEIGHTS["soft_skills"],
         "max_additional": WEIGHTS["additional"],
+        "max_personality_bonus": PERSONALITY_BONUS,
     }
+
+
+def get_skill_gaps(person: dict, sector: str) -> dict:
+    """
+    Identify missing skills for a job sector (skill gap analysis).
+
+    Args:
+        person: Dictionary containing CV data
+        sector: Job sector key from JobSectors
+
+    Returns:
+        Dictionary with 'missing_required', 'missing_extra', and 'matched' skills
+    """
+    if sector not in JobSectors:
+        return {"missing_required": [], "missing_extra": [], "matched": []}
+
+    sector_data = JobSectors[sector]
+    required_skills = sector_data.get("Skills", [])
+    extra_skills = sector_data.get("ExtraSkills", [])
+
+    # Gather person's skills
+    person_skills_text = ""
+    for field in [
+        "CommunicationSkills",
+        "OrganizationalManagerialSkills",
+        "JobRelatedSkills",
+        "ComputerSkills",
+        "OtherSkills",
+    ]:
+        person_skills_text += " " + _safe_lower(person.get(field, ""))
+
+    missing_required = []
+    missing_extra = []
+    matched = []
+
+    for skill in required_skills:
+        if skill.lower() in person_skills_text:
+            matched.append(skill)
+        else:
+            missing_required.append(skill)
+
+    for skill in extra_skills:
+        if skill.lower() in person_skills_text:
+            matched.append(skill)
+        else:
+            missing_extra.append(skill)
+
+    return {
+        "missing_required": missing_required,
+        "missing_extra": missing_extra,
+        "matched": matched,
+    }
+
+
+def _calculate_personality_bonus(personality_type: str, sector: str) -> float:
+    """
+    Calculate bonus points for personality-job match.
+
+    Each job sector has preferred MBTI types that are good fits.
+    A match gives bonus points.
+    """
+    if not personality_type or sector not in JobSectors:
+        return 0.0
+
+    sector_data = JobSectors[sector]
+    preferred_types = sector_data.get("Personality", [])
+
+    if personality_type in preferred_types:
+        return PERSONALITY_BONUS
+
+    # Partial match: same dominant function (first 2 letters match)
+    for pref_type in preferred_types:
+        if len(personality_type) >= 2 and len(pref_type) >= 2:
+            if personality_type[:2] == pref_type[:2]:
+                return PERSONALITY_BONUS * 0.5
+
+    return 0.0
 
 
 def _calculate_education_score(person: dict, sector: str) -> float:

@@ -2,7 +2,6 @@
 
 import os
 import re
-from datetime import datetime
 from typing import Optional
 
 
@@ -257,7 +256,7 @@ def create_empty_cv() -> dict:
 
 def cv_to_string(person: dict) -> str:
     """
-    Convert a CV dictionary to a formatted string.
+    Convert a CV dictionary to a formatted summary string.
 
     Useful for previewing CV content without writing to a file.
 
@@ -265,14 +264,8 @@ def cv_to_string(person: dict) -> str:
         person: Dictionary containing CV data
 
     Returns:
-        Formatted CV string
+        Formatted CV summary string
     """
-    import io
-
-    buffer = io.StringIO()
-
-    # Temporarily write to string buffer
-    original_write = _write_cv_content
 
     def get_field(key: str, default: str = "") -> str:
         value = person.get(key)
@@ -281,26 +274,51 @@ def cv_to_string(person: dict) -> str:
         return str(value).strip()
 
     lines = [
-        "Curriculum Vitae",
+        "═" * 50,
+        "CURRICULUM VITAE",
+        "═" * 50,
         "",
         f"Name: {get_field('FirstName')} {get_field('LastName')}",
         f"Location: {get_field('City')}, {get_field('Country')}",
         f"Email: {get_field('EmailAddress')}",
+        f"Nationality: {get_field('Nationality')}",
         "",
-        "Work Experience:",
+        "─" * 30,
+        "WORK EXPERIENCE",
+        "─" * 30,
     ]
 
     for i in [1, 2, 3]:
         workplace = get_field(f"Workplace{i}")
         if workplace:
-            lines.append(f"  - {workplace} ({get_field(f'Dates{i}')})")
-            lines.append(f"    {get_field(f'Occupation{i}')}")
+            lines.append(f"• {workplace}")
+            lines.append(f"  {get_field(f'Occupation{i}')} ({get_field(f'Dates{i}')})")
+            activities = get_field(f"MainActivities{i}")
+            if activities:
+                lines.append(
+                    f"  → {activities[:80]}{'...' if len(activities) > 80 else ''}"
+                )
+            lines.append("")
 
     lines.extend(
         [
+            "─" * 30,
+            "EDUCATION",
+            "─" * 30,
+            f"• {get_field('QualificationsAwarded') or get_field('HighSchool') or 'N/A'}",
+            f"  {get_field('College/University')}",
             "",
-            f"Education: {get_field('QualificationsAwarded')}",
-            f"Skills: {get_field('ComputerSkills')}",
+            "─" * 30,
+            "SKILLS",
+            "─" * 30,
+            f"• Computer: {get_field('ComputerSkills') or 'N/A'}",
+            f"• Languages: {get_field('MotherLanguage')}"
+            + (
+                f", {get_field('ModernLanguage1')}"
+                if get_field("ModernLanguage1")
+                else ""
+            ),
+            "",
         ]
     )
 

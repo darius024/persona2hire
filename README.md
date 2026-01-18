@@ -7,13 +7,16 @@ A desktop application for analyzing CVs (Curriculum Vitae) and matching candidat
 - **CV Parsing**: Robust key-based parsing of structured CV text files with multiple date format support
 - **CV Creation**: Create new CVs through a modern form-based interface with validation
 - **Job Matching**: Analyze candidates against 30+ job sectors with normalized scoring (0-100)
+- **Personality-Job Matching**: Bonus points for MBTI personality types that match job sector preferences
 - **Personality Analysis**: Determine Myers-Briggs (MBTI) and Big Five personality profiles
+- **Skill Gap Analysis**: See what skills a candidate is missing for a specific role
 - **Candidate Ranking**: Rank and compare candidates for specific positions
-- **Score Breakdown**: View detailed scoring breakdown by category
+- **Score Breakdown**: Visual progress bars showing scores in each category
 - **Candidate Filtering**: Filter candidates by nationality, age, experience, skills, and languages
 - **Export to CSV**: Export analysis results to CSV for further processing
 - **Keyboard Shortcuts**: Quick actions with Ctrl+N, Ctrl+O, Ctrl+Enter, Ctrl+E
 - **Tooltips**: Hover over buttons for usage hints
+- **Double-click Support**: Double-click a CV to instantly view personality analysis
 
 ## Project Structure
 
@@ -112,7 +115,7 @@ Created CVs are automatically saved to the `CVs/` directory.
 
 ## Scoring System
 
-The job matching uses a normalized 0-100 scoring system:
+The job matching uses a normalized 0-100 scoring system with personality bonus:
 
 | Category | Max Points | What It Measures |
 |----------|------------|------------------|
@@ -122,6 +125,14 @@ The job matching uses a normalized 0-100 scoring system:
 | **Languages** | 10 | Language proficiency and business value |
 | **Soft Skills** | 10 | Communication, leadership, teamwork, etc. |
 | **Additional** | 5 | Publications, awards, projects, conferences |
+| **Personality Match** | +5 | Bonus if MBTI type matches sector preferences |
+
+### Skill Gap Analysis
+
+When viewing a candidate's score breakdown, you'll see:
+- ✓ **Matched Skills**: Skills the candidate already has
+- ✗ **Missing Required**: Essential skills to develop for this role
+- ○ **Could Learn**: Optional advanced skills for career growth
 
 ## CV File Format
 

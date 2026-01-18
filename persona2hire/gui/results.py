@@ -4,7 +4,7 @@ from tkinter import *
 from tkinter import ttk
 import webbrowser
 
-from ..analysis.job_analyzer import analyze_jobs, get_score_breakdown
+from ..analysis.job_analyzer import analyze_jobs, get_score_breakdown, get_skill_gaps
 from ..analysis.personality_analyzer import (
     analyze_personality,
     get_personality_percentages,
@@ -113,89 +113,210 @@ def show_results(parent, persons_list: list, selected_sector: str):
 
 
 def _show_score_breakdown(parent, person: dict, sector: str):
-    """Show detailed score breakdown in a popup."""
+    """Show detailed score breakdown with progress bars and skill gap analysis."""
     breakdown = get_score_breakdown(person, sector)
+    skill_gaps = get_skill_gaps(person, sector)
 
     name = f"{person.get('FirstName', '')} {person.get('LastName', '')}".strip()
 
     popup = Toplevel(parent)
     popup.title(f"Score Breakdown - {name}")
     popup.configure(bg="white")
-    popup.geometry("400x350")
+    popup.geometry("550x550")
 
     # Center the popup
     popup.transient(parent)
 
+    # Create scrollable frame
+    canvas = Canvas(popup, bg="white", highlightthickness=0)
+    scrollbar = Scrollbar(popup, orient="vertical", command=canvas.yview)
+    scrollable_frame = Frame(canvas, bg="white")
+
+    scrollable_frame.bind(
+        "<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+    )
+    canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+    canvas.configure(yscrollcommand=scrollbar.set)
+
+    canvas.pack(side=LEFT, fill=BOTH, expand=True, padx=10)
+    scrollbar.pack(side=RIGHT, fill=Y)
+
+    # Title
     Label(
-        popup,
+        scrollable_frame,
         text=f"Score Breakdown for {name}",
         bg="white",
         fg="black",
-        font=("calibre", 14, "bold"),
+        font=("calibre", 16, "bold"),
     ).pack(pady=15)
 
-    frame = Frame(popup, bg="white")
-    frame.pack(pady=10, padx=20, fill=BOTH, expand=True)
-
+    # Score categories with progress bars
     categories = [
-        ("Education", "education", "max_education"),
-        ("Work Experience", "work_experience", "max_work_experience"),
-        ("Skills Match", "skills", "max_skills"),
-        ("Languages", "languages", "max_languages"),
-        ("Soft Skills", "soft_skills", "max_soft_skills"),
-        ("Additional", "additional", "max_additional"),
+        ("Education", "education", "max_education", "#3498db"),
+        ("Work Experience", "work_experience", "max_work_experience", "#2ecc71"),
+        ("Skills Match", "skills", "max_skills", "#9b59b6"),
+        ("Languages", "languages", "max_languages", "#f39c12"),
+        ("Soft Skills", "soft_skills", "max_soft_skills", "#1abc9c"),
+        ("Additional", "additional", "max_additional", "#e74c3c"),
     ]
 
-    for i, (label, key, max_key) in enumerate(categories):
+    scores_frame = Frame(scrollable_frame, bg="white")
+    scores_frame.pack(pady=10, padx=20, fill=X)
+
+    total = 0
+    for i, (label, key, max_key, color) in enumerate(categories):
         score = breakdown.get(key, 0)
         max_score = breakdown.get(max_key, 1)
+        total += score
+        percentage = (score / max_score) * 100 if max_score > 0 else 0
 
+        # Category label
         Label(
-            frame,
+            scores_frame,
             text=f"{label}:",
             bg="white",
             fg="black",
-            font=("calibre", 12),
+            font=("calibre", 11),
             anchor="w",
-        ).grid(row=i, column=0, sticky="w", pady=5)
+            width=15,
+        ).grid(row=i, column=0, sticky="w", pady=4)
+
+        # Progress bar frame
+        bar_frame = Frame(scores_frame, bg="#e0e0e0", height=18, width=200)
+        bar_frame.grid(row=i, column=1, pady=4, padx=5)
+        bar_frame.pack_propagate(False)
+
+        # Filled part of progress bar
+        fill_width = int(200 * (score / max_score)) if max_score > 0 else 0
+        if fill_width > 0:
+            bar_fill = Frame(bar_frame, bg=color, height=18, width=fill_width)
+            bar_fill.place(x=0, y=0)
+
+        # Score label
+        Label(
+            scores_frame,
+            text=f"{score:.1f}/{max_score}",
+            bg="white",
+            fg="black",
+            font=("calibre", 10, "bold"),
+            width=8,
+        ).grid(row=i, column=2, sticky="e", pady=4)
+
+    # Personality bonus (if any)
+    personality_bonus = breakdown.get("personality_bonus", 0)
+    max_bonus = breakdown.get("max_personality_bonus", 5)
+    if personality_bonus > 0:
+        bonus_row = len(categories)
+        Label(
+            scores_frame,
+            text="🎯 Personality Match:",
+            bg="white",
+            fg="#8e44ad",
+            font=("calibre", 11, "bold"),
+            anchor="w",
+        ).grid(row=bonus_row, column=0, sticky="w", pady=4)
 
         Label(
-            frame,
-            text=f"{score:.1f} / {max_score}",
+            scores_frame,
+            text=f"+{personality_bonus:.1f}",
             bg="white",
-            fg="darkblue",
-            font=("calibre", 12, "bold"),
-            anchor="e",
-        ).grid(row=i, column=1, sticky="e", pady=5, padx=20)
+            fg="#8e44ad",
+            font=("calibre", 11, "bold"),
+        ).grid(row=bonus_row, column=2, sticky="e", pady=4)
+        total += personality_bonus
 
-    # Total
-    total = sum(breakdown.get(cat[1], 0) for cat in categories)
+    # Total score
+    total_frame = Frame(scrollable_frame, bg="#f0f0f0", padx=20, pady=10)
+    total_frame.pack(fill=X, pady=15, padx=20)
+
     Label(
-        frame,
-        text="TOTAL:",
+        total_frame,
+        text="TOTAL SCORE:",
+        bg="#f0f0f0",
+        fg="black",
+        font=("calibre", 14, "bold"),
+    ).pack(side=LEFT)
+
+    # Color code total
+    if total >= 70:
+        total_color = "#27ae60"  # Green
+    elif total >= 50:
+        total_color = "#f39c12"  # Orange
+    else:
+        total_color = "#e74c3c"  # Red
+
+    Label(
+        total_frame,
+        text=f"{total:.1f}/100",
+        bg="#f0f0f0",
+        fg=total_color,
+        font=("calibre", 16, "bold"),
+    ).pack(side=RIGHT)
+
+    # Skill Gap Analysis section
+    skill_gap_frame = Frame(scrollable_frame, bg="white")
+    skill_gap_frame.pack(fill=X, padx=20, pady=10)
+
+    Label(
+        skill_gap_frame,
+        text="📊 Skill Gap Analysis",
         bg="white",
         fg="black",
         font=("calibre", 14, "bold"),
-        anchor="w",
-    ).grid(row=len(categories), column=0, sticky="w", pady=15)
+    ).pack(anchor="w")
 
-    Label(
-        frame,
-        text=f"{total:.1f} / 100",
-        bg="white",
-        fg="green",
-        font=("calibre", 14, "bold"),
-        anchor="e",
-    ).grid(row=len(categories), column=1, sticky="e", pady=15, padx=20)
+    # Matched skills
+    matched = skill_gaps.get("matched", [])
+    if matched:
+        Label(
+            skill_gap_frame,
+            text=f"✓ Matched ({len(matched)}): {', '.join(matched[:8])}{'...' if len(matched) > 8 else ''}",
+            bg="white",
+            fg="#27ae60",
+            font=("calibre", 10),
+            wraplength=480,
+            justify=LEFT,
+        ).pack(anchor="w", pady=2)
+
+    # Missing required skills
+    missing_req = skill_gaps.get("missing_required", [])
+    if missing_req:
+        Label(
+            skill_gap_frame,
+            text=f"✗ Missing Required ({len(missing_req)}): {', '.join(missing_req[:6])}{'...' if len(missing_req) > 6 else ''}",
+            bg="white",
+            fg="#e74c3c",
+            font=("calibre", 10),
+            wraplength=480,
+            justify=LEFT,
+        ).pack(anchor="w", pady=2)
+
+    # Missing extra skills
+    missing_extra = skill_gaps.get("missing_extra", [])
+    if missing_extra:
+        Label(
+            skill_gap_frame,
+            text=f"○ Could Learn ({len(missing_extra)}): {', '.join(missing_extra[:5])}{'...' if len(missing_extra) > 5 else ''}",
+            bg="white",
+            fg="#7f8c8d",
+            font=("calibre", 10),
+            wraplength=480,
+            justify=LEFT,
+        ).pack(anchor="w", pady=2)
+
+    # Buttons
+    button_frame = Frame(scrollable_frame, bg="white")
+    button_frame.pack(pady=15)
 
     Button(
-        popup,
+        button_frame,
         text="Close",
         command=popup.destroy,
-        bg="gray",
+        bg="#95a5a6",
         fg="white",
         font=("calibre", 12),
-    ).pack(pady=15)
+        padx=20,
+    ).pack()
 
 
 def show_jobs(parent, person: dict):
