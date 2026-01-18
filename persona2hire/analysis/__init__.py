@@ -6,6 +6,10 @@ from .job_analyzer import (
     get_score_breakdown,
     get_skill_gaps,
     filter_candidates,
+    enable_ml_scoring,
+    is_ml_available,
+    analyze_job_with_ml,
+    record_score_feedback,
 )
 from .personality_analyzer import (
     analyze_personality,
@@ -20,6 +24,10 @@ __all__ = [
     "get_score_breakdown",
     "get_skill_gaps",
     "filter_candidates",
+    "enable_ml_scoring",
+    "is_ml_available",
+    "analyze_job_with_ml",
+    "record_score_feedback",
     "analyze_personality",
     "get_personality_percentages",
     "get_big_five_profile",

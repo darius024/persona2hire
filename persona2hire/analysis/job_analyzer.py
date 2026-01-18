@@ -29,8 +29,49 @@ WEIGHTS = {
 # Bonus for personality match (added on top of base 100)
 PERSONALITY_BONUS = 5  # Max 5 bonus points for matching personality type
 
+# Global ML pipeline instance (lazy loaded)
+_ml_pipeline = None
+_ml_enabled = False
 
-def analyze_job(person: dict, sector: str, personality_type: str = None) -> float:
+
+def enable_ml_scoring(enable: bool = True):
+    """
+    Enable or disable ML-based score adjustment.
+
+    Args:
+        enable: Whether to enable ML scoring
+    """
+    global _ml_enabled
+    _ml_enabled = enable
+
+
+def get_ml_pipeline():
+    """
+    Get or initialize the ML pipeline for adaptive scoring.
+
+    Returns:
+        MLPipeline instance or None if not available
+    """
+    global _ml_pipeline
+
+    if _ml_pipeline is None:
+        try:
+            from ..ml.pipeline import MLPipeline, PipelineConfig
+            config = PipelineConfig()
+            _ml_pipeline = MLPipeline(config=config, sector_data=JobSectors)
+        except Exception:
+            _ml_pipeline = None
+
+    return _ml_pipeline
+
+
+def is_ml_available() -> bool:
+    """Check if ML scoring is available and trained."""
+    pipeline = get_ml_pipeline()
+    return pipeline is not None and pipeline.model is not None and pipeline.model.is_trained
+
+
+def analyze_job(person: dict, sector: str, personality_type: str = None, use_ml: bool = None) -> float:
     """
     Analyze a person's fit for a specific job sector.
 
@@ -38,6 +79,7 @@ def analyze_job(person: dict, sector: str, personality_type: str = None) -> floa
         person: Dictionary containing CV data
         sector: Job sector key from JobSectors
         personality_type: Optional pre-calculated MBTI type (for efficiency)
+        use_ml: Whether to use ML adjustment (None = use global setting)
 
     Returns:
         Total score for the person-sector match (0-100+ scale, can exceed 100 with bonuses)
@@ -69,7 +111,107 @@ def analyze_job(person: dict, sector: str, personality_type: str = None) -> floa
     personality_bonus = _calculate_personality_bonus(personality_type, sector)
     total_score += personality_bonus
 
+    # Apply ML adjustment if enabled
+    should_use_ml = use_ml if use_ml is not None else _ml_enabled
+    if should_use_ml and is_ml_available():
+        total_score = _apply_ml_adjustment(person, sector, total_score)
+
     return round(total_score, 1)
+
+
+def _apply_ml_adjustment(person: dict, sector: str, base_score: float) -> float:
+    """
+    Apply ML-based score adjustment.
+
+    Args:
+        person: CV data
+        sector: Job sector
+        base_score: Rule-based score
+
+    Returns:
+        Adjusted score
+    """
+    pipeline = get_ml_pipeline()
+    if pipeline is None:
+        return base_score
+
+    try:
+        return pipeline.get_adjusted_score(person, sector, base_score)
+    except Exception:
+        return base_score
+
+
+def analyze_job_with_ml(person: dict, sector: str) -> dict:
+    """
+    Analyze job match with full ML insights.
+
+    Args:
+        person: CV data
+        sector: Job sector
+
+    Returns:
+        Dictionary with scores and ML insights
+    """
+    # Get rule-based score
+    rule_score = analyze_job(person, sector, use_ml=False)
+
+    result = {
+        "rule_based_score": rule_score,
+        "ml_adjusted_score": rule_score,
+        "adjustment_factor": 1.0,
+        "ml_available": False,
+        "ml_prediction": None,
+    }
+
+    # Get ML insights if available
+    if is_ml_available():
+        pipeline = get_ml_pipeline()
+        result["ml_available"] = True
+
+        try:
+            ml_score = pipeline.predict_score(person, sector)
+            adjusted = pipeline.get_adjusted_score(person, sector, rule_score)
+
+            result["ml_prediction"] = round(ml_score, 1)
+            result["ml_adjusted_score"] = round(adjusted, 1)
+            result["adjustment_factor"] = round(adjusted / max(rule_score, 1), 2)
+        except Exception:
+            pass
+
+    return result
+
+
+def record_score_feedback(
+    person: dict,
+    sector: str,
+    predicted_score: float,
+    actual_score: float = None,
+    was_hired: bool = None,
+):
+    """
+    Record feedback for ML model improvement.
+
+    Args:
+        person: CV data
+        sector: Job sector
+        predicted_score: Score that was shown
+        actual_score: Correct score (if user provides)
+        was_hired: Whether candidate was hired
+    """
+    pipeline = get_ml_pipeline()
+    if pipeline is None:
+        return
+
+    try:
+        pipeline.record_feedback(
+            cv_data=person,
+            sector=sector,
+            predicted_score=predicted_score,
+            actual_score=actual_score,
+            was_hired=was_hired,
+        )
+    except Exception:
+        pass
 
 
 def analyze_jobs(person: dict) -> list:

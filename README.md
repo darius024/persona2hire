@@ -17,6 +17,7 @@ A desktop application for analyzing CVs (Curriculum Vitae) and matching candidat
 - **Keyboard Shortcuts**: Quick actions with Ctrl+N, Ctrl+O, Ctrl+Enter, Ctrl+E
 - **Tooltips**: Hover over buttons for usage hints
 - **Double-click Support**: Double-click a CV to instantly view personality analysis
+- **Machine Learning**: Adaptive scoring that learns from feedback and hiring outcomes
 
 ## Project Structure
 
@@ -35,11 +36,22 @@ Persona2Hire/
 │   ├── cv/                    # CV file operations
 │   │   ├── parser.py          # Robust CV file parsing
 │   │   └── writer.py          # CV file writing with validation
-│   └── gui/                   # GUI modules
-│       ├── main_window.py     # Main application window
-│       ├── cv_form.py         # CV creation form
-│       ├── dialogs.py         # Filter dialogs
-│       └── results.py         # Results display windows
+│   ├── gui/                   # GUI modules
+│   │   ├── main_window.py     # Main application window
+│   │   ├── cv_form.py         # CV creation form
+│   │   ├── dialogs.py         # Filter dialogs
+│   │   └── results.py         # Results display windows
+│   └── ml/                    # Machine Learning module
+│       ├── feature_extractor.py  # Extract 31 features from CVs
+│       ├── model.py           # Gradient boosting scoring model
+│       ├── data_generator.py  # Synthetic training data
+│       ├── feedback.py        # Feedback collection
+│       └── pipeline.py        # End-to-end ML pipeline
+├── scripts/                   # Utility scripts
+│   ├── train_model.py         # Train/retrain ML model
+│   └── generate_samples.py    # Generate sample CVs
+├── docs/                      # Documentation
+│   └── ML_PIPELINE.md         # ML pipeline documentation
 ├── templates/                 # CV templates
 │   └── cv_template.txt        # Empty CV template
 ├── samples/                   # Sample CVs for testing
@@ -62,6 +74,7 @@ Persona2Hire/
 
 - Python 3.10 or higher
 - Tkinter (included with Python standard library)
+- scikit-learn (for ML scoring, optional but recommended)
 - pytest (for running tests)
 
 ## Installation
@@ -212,6 +225,59 @@ Also analyzes Big Five personality traits:
 - **E**xtroversion
 - **A**greeableness
 - **N**euroticism
+
+## Machine Learning Pipeline
+
+Persona2Hire includes an ML pipeline for adaptive scoring that improves over time.
+
+### Features
+
+- **31 extracted features** from CV data (education, work, skills, languages, personality)
+- **Gradient Boosting model** for score prediction
+- **Hybrid scoring**: ML adjusts rule-based scores rather than replacing them
+- **Feedback collection**: Learn from hiring outcomes
+- **Periodic retraining**: Improve accuracy with real-world data
+
+### Quick Start
+
+```bash
+# Train the initial model
+python -m scripts.train_model --initial --samples 200
+
+# Check model status
+python -m scripts.train_model --status
+
+# Generate sample CVs for testing
+python -m scripts.generate_samples --count 20
+```
+
+### Enable ML Scoring
+
+```python
+from persona2hire.analysis import enable_ml_scoring, analyze_job
+
+# Enable ML-adjusted scoring
+enable_ml_scoring(True)
+
+# Scores now include ML adjustment
+score = analyze_job(cv_data, "Computers_ICT")
+```
+
+### Continuous Learning
+
+The system collects feedback to improve:
+
+```python
+from persona2hire.analysis import record_score_feedback
+
+# Record when a candidate is hired
+record_score_feedback(cv_data, sector, predicted_score=75.0, was_hired=True)
+
+# Retrain periodically
+python -m scripts.train_model --retrain
+```
+
+See [docs/ML_PIPELINE.md](docs/ML_PIPELINE.md) for complete documentation.
 
 ## Testing
 
