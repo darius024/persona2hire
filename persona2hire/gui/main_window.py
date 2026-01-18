@@ -1,14 +1,56 @@
 """Main application window."""
 
+import csv
+import os
 from tkinter import *
 from tkinter import messagebox
-from tkinter.filedialog import askopenfilename, askopenfilenames
+from tkinter.filedialog import askopenfilename, askopenfilenames, asksaveasfilename
 
 from ..data.job_sectors import JobSectors
 from ..cv.parser import read_cv_file, validate_cv_data, get_cv_summary
+from ..analysis.job_analyzer import filter_candidates
 from .cv_form import create_cv_form
 from .dialogs import select_data_dialog
 from .results import show_results, show_jobs, show_personality
+
+
+class ToolTip:
+    """Simple tooltip class for Tkinter widgets."""
+
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self.tooltip = None
+        self.widget.bind("<Enter>", self.show)
+        self.widget.bind("<Leave>", self.hide)
+
+    def show(self, event=None):
+        """Show the tooltip."""
+        x = self.widget.winfo_rootx() + 20
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 5
+
+        self.tooltip = Toplevel(self.widget)
+        self.tooltip.wm_overrideredirect(True)
+        self.tooltip.wm_geometry(f"+{x}+{y}")
+
+        label = Label(
+            self.tooltip,
+            text=self.text,
+            bg="#333",
+            fg="white",
+            relief="solid",
+            borderwidth=1,
+            font=("calibre", 10),
+            padx=6,
+            pady=3,
+        )
+        label.pack()
+
+    def hide(self, event=None):
+        """Hide the tooltip."""
+        if self.tooltip:
+            self.tooltip.destroy()
+            self.tooltip = None
 
 
 class MainWindow:
@@ -40,6 +82,31 @@ class MainWindow:
         self._create_buttons()
         self._create_file_list()
         self._create_action_buttons()
+        self._setup_keyboard_shortcuts()
+
+    def _setup_keyboard_shortcuts(self):
+        """Set up keyboard shortcuts for common actions."""
+        # Ctrl+O: Open file
+        self.window.bind("<Control-o>", lambda e: self._open_file())
+        self.window.bind("<Control-O>", lambda e: self._open_file())
+
+        # Ctrl+N: New CV
+        self.window.bind("<Control-n>", lambda e: self._make_cv())
+        self.window.bind("<Control-N>", lambda e: self._make_cv())
+
+        # Ctrl+Enter: Analyze
+        self.window.bind("<Control-Return>", lambda e: self._analyze_data())
+
+        # Ctrl+E: Export
+        self.window.bind("<Control-e>", lambda e: self._export_results())
+        self.window.bind("<Control-E>", lambda e: self._export_results())
+
+        # Delete: Remove selected
+        self.window.bind("<Delete>", lambda e: self._remove_file())
+        self.window.bind("<BackSpace>", lambda e: self._remove_file())
+
+        # Escape: Clear job selector
+        self.window.bind("<Escape>", lambda e: self._hide_job_list())
 
     def _create_header(self):
         """Create the header section."""
@@ -120,7 +187,7 @@ class MainWindow:
     def _create_buttons(self):
         """Create main action buttons."""
         # Make CV button
-        Button(
+        btn_new = Button(
             self.window,
             text="Create New CV",
             command=self._make_cv,
@@ -131,10 +198,12 @@ class MainWindow:
             height=2,
             width=15,
             font=("calibre", 14, "bold"),
-        ).place(relx=0.25, rely=0.24, anchor=CENTER)
+        )
+        btn_new.place(relx=0.25, rely=0.24, anchor=CENTER)
+        ToolTip(btn_new, "Create a new CV (Ctrl+N)")
 
         # Choose File button
-        Button(
+        btn_load = Button(
             self.window,
             text="Load CV File(s)",
             command=self._open_file,
@@ -145,10 +214,12 @@ class MainWindow:
             height=2,
             width=15,
             font=("calibre", 14, "bold"),
-        ).place(relx=0.5, rely=0.24, anchor=CENTER)
+        )
+        btn_load.place(relx=0.5, rely=0.24, anchor=CENTER)
+        ToolTip(btn_load, "Load existing CV files (Ctrl+O)")
 
         # Analyze Data button
-        Button(
+        btn_analyze = Button(
             self.window,
             text="Analyze All",
             command=self._analyze_data,
@@ -159,7 +230,9 @@ class MainWindow:
             height=2,
             width=15,
             font=("calibre", 14, "bold"),
-        ).place(relx=0.75, rely=0.24, anchor=CENTER)
+        )
+        btn_analyze.place(relx=0.75, rely=0.24, anchor=CENTER)
+        ToolTip(btn_analyze, "Analyze all CVs for selected sector (Ctrl+Enter)")
 
     def _create_file_list(self):
         """Create the file list with scrollbar."""
@@ -245,6 +318,19 @@ class MainWindow:
             bg="#74b9ff",
             fg="black",
             activebackground="#a4d4ff",
+            activeforeground="black",
+            font=("calibre", 12),
+            padx=15,
+        ).pack(side=LEFT, padx=10)
+
+        # Export button
+        Button(
+            button_frame,
+            text="Export Results",
+            command=self._export_results,
+            bg="#00cec9",
+            fg="black",
+            activebackground="#81ecec",
             activeforeground="black",
             font=("calibre", 12),
             padx=15,
@@ -414,7 +500,25 @@ class MainWindow:
                 )
                 return
 
-        show_results(self.window, self.persons, sector)
+        # Apply filter criteria if set
+        persons_to_analyze = self.persons
+        if self.filter_criteria:
+            persons_to_analyze = filter_candidates(self.persons, self.filter_criteria)
+            if not persons_to_analyze:
+                messagebox.showinfo(
+                    "No Matches",
+                    "No candidates match the filter criteria.\n"
+                    "Try adjusting your filters.",
+                )
+                return
+            if len(persons_to_analyze) < len(self.persons):
+                messagebox.showinfo(
+                    "Filtered",
+                    f"Analyzing {len(persons_to_analyze)} of {len(self.persons)} "
+                    "candidates that match your filter criteria.",
+                )
+
+        show_results(self.window, persons_to_analyze, sector)
 
     def _show_jobs(self):
         """Show suitable jobs for the selected person."""
@@ -447,6 +551,100 @@ class MainWindow:
             self.status_label.config(text="1 CV loaded")
         else:
             self.status_label.config(text=f"{count} CVs loaded")
+
+    def _export_results(self):
+        """Export analysis results to a CSV file."""
+        from ..analysis.job_analyzer import analyze_job, get_score_breakdown
+        from ..analysis.personality_analyzer import analyze_personality
+
+        if not self.persons:
+            messagebox.showinfo("No CVs", "Please load some CV files first.")
+            return
+
+        sector = self.job_var.get().strip()
+        if not sector or sector not in JobSectors:
+            messagebox.showinfo(
+                "Select Sector",
+                "Please select a valid job sector before exporting.",
+            )
+            return
+
+        # Ask for save location
+        filepath = asksaveasfilename(
+            title="Export Results",
+            defaultextension=".csv",
+            filetypes=[("CSV Files", "*.csv"), ("All Files", "*.*")],
+            initialfile=f"results_{sector}.csv",
+        )
+
+        if not filepath:
+            return
+
+        try:
+            # Analyze and export
+            with open(filepath, "w", newline="", encoding="utf-8") as csvfile:
+                writer = csv.writer(csvfile)
+
+                # Header row
+                writer.writerow(
+                    [
+                        "Rank",
+                        "First Name",
+                        "Last Name",
+                        "Email",
+                        "Total Score",
+                        "Education Score",
+                        "Work Experience Score",
+                        "Skills Score",
+                        "Languages Score",
+                        "Soft Skills Score",
+                        "Additional Score",
+                        "Personality Type",
+                        "Nationality",
+                    ]
+                )
+
+                # Calculate scores and sort
+                results = []
+                for person in self.persons:
+                    score = analyze_job(person, sector)
+                    personality = analyze_personality(person)
+                    breakdown = get_score_breakdown(person, sector)
+                    results.append((person, score, personality, breakdown))
+
+                results.sort(key=lambda x: x[1], reverse=True)
+
+                # Write data rows
+                for rank, (person, score, personality, breakdown) in enumerate(
+                    results, 1
+                ):
+                    writer.writerow(
+                        [
+                            rank,
+                            person.get("FirstName", ""),
+                            person.get("LastName", ""),
+                            person.get("EmailAddress", ""),
+                            f"{score:.1f}",
+                            f"{breakdown.get('education', 0):.1f}",
+                            f"{breakdown.get('work_experience', 0):.1f}",
+                            f"{breakdown.get('skills', 0):.1f}",
+                            f"{breakdown.get('languages', 0):.1f}",
+                            f"{breakdown.get('soft_skills', 0):.1f}",
+                            f"{breakdown.get('additional', 0):.1f}",
+                            personality,
+                            person.get("Nationality", ""),
+                        ]
+                    )
+
+            messagebox.showinfo(
+                "Export Complete",
+                f"Results exported successfully!\n\nFile: {filepath}",
+            )
+
+        except OSError as e:
+            messagebox.showerror("Export Error", f"Could not save file:\n{str(e)}")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred:\n{str(e)}")
 
     def run(self):
         """Start the main event loop."""

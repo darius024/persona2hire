@@ -1,6 +1,6 @@
 Curriculum Vitae
        
-First-Name :	
+First-Name :
 Last-Name :
 Address :
     Street Name :

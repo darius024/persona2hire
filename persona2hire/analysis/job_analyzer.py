@@ -80,6 +80,122 @@ def analyze_jobs(person: dict) -> list:
     return job_list
 
 
+def filter_candidates(persons: list, criteria: dict) -> list:
+    """
+    Filter a list of candidates based on criteria.
+
+    Args:
+        persons: List of person dictionaries
+        criteria: Dictionary of filter criteria:
+            - nationality: Required nationality
+            - age_min: Minimum age
+            - age_max: Maximum age
+            - sex: Required sex (M/F)
+            - experience_years: Minimum years of experience
+            - skills: Required skills (comma-separated)
+            - languages: Required languages (comma-separated)
+
+    Returns:
+        Filtered list of persons
+    """
+    if not criteria:
+        return persons
+
+    filtered = []
+    today = date.today()
+
+    for person in persons:
+        include = True
+
+        # Nationality filter
+        if criteria.get("nationality"):
+            required = criteria["nationality"].lower().strip()
+            person_nat = _safe_lower(person.get("Nationality", ""))
+            if required and required not in person_nat:
+                include = False
+
+        # Age filter
+        if include and (criteria.get("age_min") or criteria.get("age_max")):
+            dob = person.get("DateOfBirth", "")
+            birth_date = _parse_date(dob)
+            if birth_date:
+                age = (today - birth_date).days // 365
+
+                if criteria.get("age_min"):
+                    try:
+                        if age < int(criteria["age_min"]):
+                            include = False
+                    except ValueError:
+                        pass
+
+                if criteria.get("age_max"):
+                    try:
+                        if age > int(criteria["age_max"]):
+                            include = False
+                    except ValueError:
+                        pass
+
+        # Sex filter
+        if include and criteria.get("sex"):
+            required = criteria["sex"].upper().strip()
+            person_sex = person.get("Sex", "").upper().strip()
+            if required and required != person_sex:
+                include = False
+
+        # Experience filter
+        if include and criteria.get("experience_years"):
+            try:
+                min_years = float(criteria["experience_years"])
+                total_years = 0.0
+
+                for i in range(1, 4):
+                    dates = _safe_str(person.get(f"Dates{i}", ""))
+                    years_worked = _calculate_time_worked(dates)
+                    total_years += years_worked
+
+                if total_years < min_years:
+                    include = False
+            except ValueError:
+                pass
+
+        # Skills filter
+        if include and criteria.get("skills"):
+            required_skills = [
+                s.strip().lower() for s in criteria["skills"].split(",") if s.strip()
+            ]
+            if required_skills:
+                person_skills = ""
+                for field in [
+                    "CommunicationSkills",
+                    "OrganizationalManagerialSkills",
+                    "JobRelatedSkills",
+                    "ComputerSkills",
+                    "OtherSkills",
+                ]:
+                    person_skills += " " + _safe_lower(person.get(field, ""))
+
+                if not all(skill in person_skills for skill in required_skills):
+                    include = False
+
+        # Languages filter
+        if include and criteria.get("languages"):
+            required_langs = [
+                l.strip().lower() for l in criteria["languages"].split(",") if l.strip()
+            ]
+            if required_langs:
+                person_langs = _safe_lower(person.get("MotherLanguage", ""))
+                person_langs += " " + _safe_lower(person.get("ModernLanguage1", ""))
+                person_langs += " " + _safe_lower(person.get("ModernLanguage2", ""))
+
+                if not all(lang in person_langs for lang in required_langs):
+                    include = False
+
+        if include:
+            filtered.append(person)
+
+    return filtered
+
+
 def get_score_breakdown(person: dict, sector: str) -> dict:
     """
     Get a detailed breakdown of the scoring for a person-sector match.
@@ -303,18 +419,104 @@ def _calculate_time_worked(dates_str: str) -> float:
 
 
 def _parse_date(date_str: str) -> Optional[date]:
-    """Parse a date string in DD.MM.YYYY format."""
+    """
+    Parse a date string in various formats.
+
+    Supported formats:
+    - DD.MM.YYYY (European)
+    - MM/DD/YYYY (US)
+    - YYYY-MM-DD (ISO)
+    - DD/MM/YYYY
+    - Month YYYY (e.g., "January 2020")
+    - YYYY (year only)
+    """
     if not date_str:
         return None
 
+    date_str = date_str.strip()
+
+    # Month name to number mapping
+    months = {
+        "january": 1,
+        "jan": 1,
+        "february": 2,
+        "feb": 2,
+        "march": 3,
+        "mar": 3,
+        "april": 4,
+        "apr": 4,
+        "may": 5,
+        "june": 6,
+        "jun": 6,
+        "july": 7,
+        "jul": 7,
+        "august": 8,
+        "aug": 8,
+        "september": 9,
+        "sep": 9,
+        "sept": 9,
+        "october": 10,
+        "oct": 10,
+        "november": 11,
+        "nov": 11,
+        "december": 12,
+        "dec": 12,
+    }
+
+    # Try DD.MM.YYYY
     try:
-        parts = date_str.strip().split(".")
+        parts = date_str.split(".")
         if len(parts) >= 3:
             day = int(parts[0])
             month = int(parts[1])
             year = int(parts[2])
             return date(year, month, day)
     except (ValueError, IndexError):
+        pass
+
+    # Try MM/DD/YYYY or DD/MM/YYYY
+    try:
+        parts = date_str.split("/")
+        if len(parts) >= 3:
+            first = int(parts[0])
+            second = int(parts[1])
+            year = int(parts[2])
+            # Assume MM/DD/YYYY if first <= 12, else DD/MM/YYYY
+            if first <= 12:
+                return date(year, first, second)
+            else:
+                return date(year, second, first)
+    except (ValueError, IndexError):
+        pass
+
+    # Try YYYY-MM-DD (ISO format)
+    try:
+        parts = date_str.split("-")
+        if len(parts) >= 3 and len(parts[0]) == 4:
+            year = int(parts[0])
+            month = int(parts[1])
+            day = int(parts[2])
+            return date(year, month, day)
+    except (ValueError, IndexError):
+        pass
+
+    # Try "Month YYYY" format
+    try:
+        words = date_str.lower().split()
+        if len(words) >= 2:
+            month_name = words[0]
+            year = int(words[-1])
+            if month_name in months:
+                return date(year, months[month_name], 1)
+    except (ValueError, IndexError):
+        pass
+
+    # Try year only
+    try:
+        year = int(date_str)
+        if 1900 <= year <= 2100:
+            return date(year, 1, 1)
+    except ValueError:
         pass
 
     return None

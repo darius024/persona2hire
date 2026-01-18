@@ -4,12 +4,16 @@ A desktop application for analyzing CVs (Curriculum Vitae) and matching candidat
 
 ## Features
 
-- **CV Parsing**: Robust key-based parsing of structured CV text files
+- **CV Parsing**: Robust key-based parsing of structured CV text files with multiple date format support
 - **CV Creation**: Create new CVs through a modern form-based interface with validation
 - **Job Matching**: Analyze candidates against 30+ job sectors with normalized scoring (0-100)
 - **Personality Analysis**: Determine Myers-Briggs (MBTI) and Big Five personality profiles
 - **Candidate Ranking**: Rank and compare candidates for specific positions
 - **Score Breakdown**: View detailed scoring breakdown by category
+- **Candidate Filtering**: Filter candidates by nationality, age, experience, skills, and languages
+- **Export to CSV**: Export analysis results to CSV for further processing
+- **Keyboard Shortcuts**: Quick actions with Ctrl+N, Ctrl+O, Ctrl+Enter, Ctrl+E
+- **Tooltips**: Hover over buttons for usage hints
 
 ## Project Structure
 
@@ -79,11 +83,24 @@ python -m persona2hire.main
 
 1. **Select a Job Sector** from the dropdown menu (or type to filter)
 2. **Load CVs** by clicking "Load CV File(s)" and selecting files from `samples/`
-3. **Analyze All** to rank all loaded candidates for the selected sector
-4. **View Details** by selecting a candidate:
+3. **(Optional) Set Filter Criteria** to narrow down candidates
+4. **Analyze All** to rank all loaded candidates for the selected sector
+5. **View Details** by selecting a candidate:
    - Click on a candidate row to see score breakdown
    - "Show Jobs Match" - See suitable job sectors ranked
    - "Show Personality" - See MBTI and Big Five personality analysis
+6. **Export Results** to save the analysis to a CSV file
+
+### Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| Ctrl+N | Create New CV |
+| Ctrl+O | Load CV Files |
+| Ctrl+Enter | Analyze All |
+| Ctrl+E | Export Results |
+| Delete | Remove Selected |
+| Escape | Close Dropdown |
 
 ### Creating a New CV
 
@@ -123,8 +140,13 @@ Address :
 ...
 ```
 
-**Date Format**: DD.MM.YYYY (e.g., 01.06.2020)
-**Date Ranges**: DD.MM.YYYY - DD.MM.YYYY or DD.MM.YYYY - current
+**Supported Date Formats**:
+- DD.MM.YYYY (European, e.g., 01.06.2020)
+- MM/DD/YYYY (US, e.g., 06/01/2020)
+- YYYY-MM-DD (ISO, e.g., 2020-06-01)
+- Month YYYY (e.g., June 2020)
+
+**Date Ranges**: `DD.MM.YYYY - DD.MM.YYYY` or `DD.MM.YYYY - current`
 
 See `samples/` folder for complete examples.
 
