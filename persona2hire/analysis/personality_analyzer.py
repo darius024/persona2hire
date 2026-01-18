@@ -1,123 +1,257 @@
 """Personality analysis using Myers-Briggs Type Indicator (MBTI)."""
 
-from ..data.personality import Domains, Hobbies
+import copy
+from ..data.personality import Domains, Hobbies, PersonalityTypes, BigFive
 
 
 def analyze_personality(person: dict) -> str:
     """
     Analyze a person's personality type based on their CV data.
-    
+
     Args:
         person: Dictionary containing CV data
-        
+
     Returns:
         4-letter MBTI personality type (e.g., "INTJ", "ENFP")
     """
-    # Reset domain scores
-    _reset_domain_scores()
-    
+    # Create a fresh copy of domains to avoid state issues
+    domains = _get_fresh_domains()
+
+    # Analyze description words
+    description = person.get("ShortDescription", "").lower()
+    description_words = [
+        w.strip() for w in description.replace(",", " ").split() if w.strip()
+    ]
+    _score_from_words(domains, description_words)
+
     # Analyze hobbies
-    hobbies = [h.strip() for h in person.get("Hobbies", "").lower().split(",")]
-    description = [d.strip() for d in person.get("ShortDescription", "").lower().split(",")]
-    
-    # Score based on description words
-    _score_from_words(description)
-    
-    # Score based on hobbies (if mapping exists)
-    for word in hobbies:
-        if word in Hobbies["words"]:
-            index = Hobbies["words"].index(word)
-            if index < len(Hobbies["domain"]) and index < len(Hobbies["trait"]):
-                domain = Hobbies["domain"][index]
-                trait = Hobbies["trait"][index]
-                if domain in Domains and trait in Domains[domain]:
-                    Domains[domain][trait]["score"] += 1
-    
+    hobbies_text = person.get("Hobbies", "").lower()
+    hobbies_list = [h.strip() for h in hobbies_text.split(",") if h.strip()]
+    _score_from_hobbies(domains, hobbies_list)
+
+    # Analyze skills for personality indicators
+    skills_text = _gather_skills_text(person)
+    skills_words = [
+        w.strip() for w in skills_text.replace(",", " ").split() if w.strip()
+    ]
+    _score_from_words(domains, skills_words, weight=0.5)
+
     # Calculate domain scores
-    domain_ie_i = _sum_domain_scores("I")
-    domain_ie_e = _sum_domain_scores("E")
-    domain_sn_s = _sum_domain_scores("S")
-    domain_sn_n = _sum_domain_scores("N")
-    domain_tf_t = _sum_domain_scores("T")
-    domain_tf_f = _sum_domain_scores("F")
-    domain_jp_j = _sum_domain_scores("J")
-    domain_jp_p = _sum_domain_scores("P")
-    
+    scores = {
+        "I": _sum_domain_scores(domains, "I"),
+        "E": _sum_domain_scores(domains, "E"),
+        "S": _sum_domain_scores(domains, "S"),
+        "N": _sum_domain_scores(domains, "N"),
+        "T": _sum_domain_scores(domains, "T"),
+        "F": _sum_domain_scores(domains, "F"),
+        "J": _sum_domain_scores(domains, "J"),
+        "P": _sum_domain_scores(domains, "P"),
+    }
+
     # Determine personality type
     personality_type = ""
-    personality_type += "I" if domain_ie_i >= domain_ie_e else "E"
-    personality_type += "S" if domain_sn_s >= domain_sn_n else "N"
-    personality_type += "T" if domain_tf_t >= domain_tf_f else "F"
-    personality_type += "J" if domain_jp_j >= domain_jp_p else "P"
-    
+    personality_type += "I" if scores["I"] >= scores["E"] else "E"
+    personality_type += "S" if scores["S"] >= scores["N"] else "N"
+    personality_type += "T" if scores["T"] >= scores["F"] else "F"
+    personality_type += "J" if scores["J"] >= scores["P"] else "P"
+
     return personality_type
 
 
 def get_personality_percentages(person: dict) -> dict:
     """
     Get detailed percentage breakdown of personality dimensions.
-    
+
     Args:
         person: Dictionary containing CV data
-        
+
     Returns:
         Dictionary with percentages for each MBTI dimension
     """
-    # Analyze first to populate scores
-    analyze_personality(person)
-    
-    domain_ie_i = _sum_domain_scores("I")
-    domain_ie_e = _sum_domain_scores("E")
-    domain_sn_s = _sum_domain_scores("S")
-    domain_sn_n = _sum_domain_scores("N")
-    domain_tf_t = _sum_domain_scores("T")
-    domain_tf_f = _sum_domain_scores("F")
-    domain_jp_j = _sum_domain_scores("J")
-    domain_jp_p = _sum_domain_scores("P")
-    
+    # Create fresh domains
+    domains = _get_fresh_domains()
+
+    # Analyze all text
+    description = person.get("ShortDescription", "").lower()
+    description_words = [
+        w.strip() for w in description.replace(",", " ").split() if w.strip()
+    ]
+    _score_from_words(domains, description_words)
+
+    hobbies_text = person.get("Hobbies", "").lower()
+    hobbies_list = [h.strip() for h in hobbies_text.split(",") if h.strip()]
+    _score_from_hobbies(domains, hobbies_list)
+
+    # Calculate scores
+    scores = {
+        "I": _sum_domain_scores(domains, "I"),
+        "E": _sum_domain_scores(domains, "E"),
+        "S": _sum_domain_scores(domains, "S"),
+        "N": _sum_domain_scores(domains, "N"),
+        "T": _sum_domain_scores(domains, "T"),
+        "F": _sum_domain_scores(domains, "F"),
+        "J": _sum_domain_scores(domains, "J"),
+        "P": _sum_domain_scores(domains, "P"),
+    }
+
     # Calculate percentages (add 1 to avoid division by zero)
-    domain_ie = domain_ie_i + domain_ie_e + 1
-    domain_sn = domain_sn_s + domain_sn_n + 1
-    domain_tf = domain_tf_t + domain_tf_f + 1
-    domain_jp = domain_jp_j + domain_jp_p + 1
-    
+    ie_total = scores["I"] + scores["E"] + 1
+    sn_total = scores["S"] + scores["N"] + 1
+    tf_total = scores["T"] + scores["F"] + 1
+    jp_total = scores["J"] + scores["P"] + 1
+
     return {
-        "I": domain_ie_i / domain_ie * 100,
-        "E": domain_ie_e / domain_ie * 100,
-        "S": domain_sn_s / domain_sn * 100,
-        "N": domain_sn_n / domain_sn * 100,
-        "T": domain_tf_t / domain_tf * 100,
-        "F": domain_tf_f / domain_tf * 100,
-        "J": domain_jp_j / domain_jp * 100,
-        "P": domain_jp_p / domain_jp * 100
+        "I": round(scores["I"] / ie_total * 100, 1),
+        "E": round(scores["E"] / ie_total * 100, 1),
+        "S": round(scores["S"] / sn_total * 100, 1),
+        "N": round(scores["N"] / sn_total * 100, 1),
+        "T": round(scores["T"] / tf_total * 100, 1),
+        "F": round(scores["F"] / tf_total * 100, 1),
+        "J": round(scores["J"] / jp_total * 100, 1),
+        "P": round(scores["P"] / jp_total * 100, 1),
     }
 
 
-def _reset_domain_scores():
-    """Reset all domain scores to zero."""
-    for domain in Domains:
-        for trait in Domains[domain]:
-            if trait != "SCORE" and isinstance(Domains[domain][trait], dict):
-                Domains[domain][trait]["score"] = 0
-        Domains[domain]["SCORE"] = 0
+def get_big_five_profile(person: dict) -> dict:
+    """
+    Analyze Big Five (OCEAN) personality traits.
+
+    Args:
+        person: Dictionary containing CV data
+
+    Returns:
+        Dictionary with scores for each Big Five trait
+    """
+    description = person.get("ShortDescription", "").lower()
+    hobbies = person.get("Hobbies", "").lower()
+    skills = _gather_skills_text(person)
+
+    all_text = f"{description} {hobbies} {skills}"
+
+    profile = {}
+    for trait, levels in BigFive.items():
+        high_matches = sum(
+            1 for word in levels.get("high", []) if word.lower() in all_text
+        )
+        low_matches = sum(
+            1 for word in levels.get("low", []) if word.lower() in all_text
+        )
+
+        # Calculate score (-100 to +100 scale)
+        total = high_matches + low_matches + 1  # Avoid division by zero
+        score = ((high_matches - low_matches) / total) * 100
+        profile[trait] = round(score, 1)
+
+    return profile
 
 
-def _score_from_words(words: list):
+def get_career_suggestions(personality_type: str) -> list:
+    """
+    Get career suggestions based on personality type.
+
+    Args:
+        personality_type: 4-letter MBTI type
+
+    Returns:
+        List of suggested careers
+    """
+    if personality_type in PersonalityTypes:
+        return PersonalityTypes[personality_type].get("Careers", [])
+    return []
+
+
+def _get_fresh_domains() -> dict:
+    """Create a fresh copy of domains with reset scores."""
+    domains = {}
+    for domain_key, domain_data in Domains.items():
+        domains[domain_key] = {}
+        for trait_key, trait_data in domain_data.items():
+            if trait_key == "SCORE":
+                domains[domain_key][trait_key] = 0
+            elif isinstance(trait_data, dict):
+                domains[domain_key][trait_key] = {
+                    "words": trait_data.get("words", []).copy(),
+                    "score": 0,
+                }
+    return domains
+
+
+def _gather_skills_text(person: dict) -> str:
+    """Gather all skills text from person data."""
+    skills_fields = [
+        "CommunicationSkills",
+        "OrganizationalManagerialSkills",
+        "JobRelatedSkills",
+        "ComputerSkills",
+        "OtherSkills",
+    ]
+    return " ".join(person.get(field, "") for field in skills_fields).lower()
+
+
+def _score_from_words(domains: dict, words: list, weight: float = 1.0):
     """Score personality based on word matches."""
     for word in words:
-        word = word.strip()
-        for domain in Domains:
-            for trait in Domains[domain]:
-                if trait != "SCORE" and isinstance(Domains[domain][trait], dict):
-                    if word in Domains[domain][trait]["words"]:
-                        Domains[domain][trait]["score"] += 1
+        word_clean = word.strip().lower()
+        if not word_clean:
+            continue
+
+        for domain_key in domains:
+            for trait_key, trait_data in domains[domain_key].items():
+                if trait_key != "SCORE" and isinstance(trait_data, dict):
+                    trait_words = trait_data.get("words", [])
+                    for trait_word in trait_words:
+                        if (
+                            word_clean == trait_word.lower()
+                            or trait_word.lower() in word_clean
+                        ):
+                            domains[domain_key][trait_key]["score"] += weight
+                            break
 
 
-def _sum_domain_scores(domain_key: str) -> int:
+def _score_from_hobbies(domains: dict, hobbies_list: list):
+    """Score personality based on hobby matches."""
+    hobby_words = Hobbies.get("words", [])
+    hobby_domains = Hobbies.get("domain", [])
+    hobby_traits = Hobbies.get("trait", [])
+
+    for hobby in hobbies_list:
+        hobby_clean = hobby.strip().lower()
+        if not hobby_clean:
+            continue
+
+        # Find matching hobby in the list
+        for i, hobby_word in enumerate(hobby_words):
+            if hobby_word.lower() in hobby_clean or hobby_clean in hobby_word.lower():
+                # Get the domain and trait for this hobby
+                if i < len(hobby_domains) and i < len(hobby_traits):
+                    domain = hobby_domains[i]
+                    trait = hobby_traits[i]
+
+                    # Add score to the corresponding domain/trait
+                    if domain in domains and trait in domains[domain]:
+                        if isinstance(domains[domain][trait], dict):
+                            domains[domain][trait]["score"] += 1
+                break
+
+    # Also check sports
+    sports = Hobbies.get("sports", [])
+    for hobby in hobbies_list:
+        hobby_clean = hobby.strip().lower()
+        for sport in sports:
+            if sport.lower() in hobby_clean:
+                # Sports tend to indicate E, S, and P traits
+                if "E" in domains and "energetic" in domains["E"]:
+                    domains["E"]["energetic"]["score"] += 0.5
+                if "S" in domains and "practical" in domains["S"]:
+                    domains["S"]["practical"]["score"] += 0.5
+                break
+
+
+def _sum_domain_scores(domains: dict, domain_key: str) -> float:
     """Sum all trait scores for a domain."""
     total = 0
-    if domain_key in Domains:
-        for trait in Domains[domain_key]:
-            if trait != "SCORE" and isinstance(Domains[domain_key][trait], dict):
-                total += Domains[domain_key][trait].get("score", 0)
+    if domain_key in domains:
+        for trait_key, trait_data in domains[domain_key].items():
+            if trait_key != "SCORE" and isinstance(trait_data, dict):
+                total += trait_data.get("score", 0)
     return total
