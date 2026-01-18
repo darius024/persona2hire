@@ -1,0 +1,35 @@
+[project]
+name = "persona2hire"
+version = "1.0.0"
+description = "CV Analysis and Personality Matching Application"
+requires-python = ">=3.10"
+authors = [
+    {name = "Darius024"}
+]
+readme = "README.md"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["persona2hire"]
+omit = ["persona2hire/gui/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]

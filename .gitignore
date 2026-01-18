@@ -32,3 +32,15 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+
+# Generated CV files (keep samples/)
+cv_*.txt
+!samples/cv_*.txt

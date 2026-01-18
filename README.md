@@ -45,8 +45,15 @@ Persona2Hire/
 ├── samples/                   # Sample CVs for testing
 │   ├── cv_example.txt         # Software developer profile
 │   └── cv_example_2.txt       # Research scientist profile
+├── tests/                     # Test suite
+│   ├── conftest.py            # Shared fixtures
+│   ├── test_parser.py         # CV parsing tests
+│   ├── test_writer.py         # CV writing tests
+│   ├── test_job_analyzer.py   # Job analysis tests
+│   └── test_personality_analyzer.py  # Personality tests
 ├── run.py                     # Simple entry point
 ├── requirements.txt
+├── pyproject.toml             # Project config & pytest settings
 ├── .gitignore
 └── README.md
 ```
@@ -55,6 +62,7 @@ Persona2Hire/
 
 - Python 3.10 or higher
 - Tkinter (included with Python standard library)
+- pytest (for running tests)
 
 ## Installation
 
@@ -68,6 +76,11 @@ Persona2Hire/
    ```bash
    python -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+3. (Optional) Install development dependencies:
+   ```bash
+   pip install -r requirements.txt
    ```
 
 ## Usage
@@ -199,6 +212,34 @@ Also analyzes Big Five personality traits:
 - **E**xtroversion
 - **A**greeableness
 - **N**euroticism
+
+## Testing
+
+Run the test suite:
+```bash
+# Install test dependencies
+pip install pytest pytest-cov
+
+# Run all tests
+pytest
+
+# Run with verbose output
+pytest -v
+
+# Run with coverage report
+pytest --cov=persona2hire
+
+# Run specific test file
+pytest tests/test_parser.py
+```
+
+The test suite includes **114 tests** covering:
+- CV parsing and validation
+- CV file writing
+- Job matching algorithms
+- Candidate filtering
+- Personality analysis (MBTI and Big Five)
+- Date format parsing
 
 ## Contributing
 

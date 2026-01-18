@@ -1,5 +1,9 @@
-# CV-Personality App Dependencies
-# Python 3.10+ required (uses match-case statements)
+# Persona2Hire Dependencies
+# Python 3.10+ required (uses match-case statements and type hints)
 
 # Tkinter is included with Python standard library
-# No additional packages required
+# No additional runtime packages required
+
+# Development/Testing dependencies
+pytest>=7.0.0
+pytest-cov>=4.0.0
