@@ -1,213 +1,392 @@
 """CV creation form window."""
 
 from tkinter import *
+from tkinter import messagebox
+from typing import Callable, Optional
 
 
-def create_cv_form(parent, persons_list: list, listbox: Listbox, on_cv_created=None):
+def create_cv_form(
+    parent,
+    persons_list: list,
+    listbox: Listbox,
+    on_cv_created: Optional[Callable] = None,
+):
     """
     Create and display the CV form window.
-    
+
     Args:
         parent: Parent Tkinter window
         persons_list: List to append new person data to
         listbox: Listbox widget to update with new CV
-        on_cv_created: Optional callback when CV is created
+        on_cv_created: Optional callback when CV is created (receives cv_data, file_path)
     """
-    from ..cv.writer import write_cv_file
-    
+    from ..cv.writer import write_cv_file, create_empty_cv
+    from ..cv.parser import validate_cv_data, get_cv_summary
+
     cv_window = Toplevel(parent)
-    cv_window.title("New CV")
-    cv_window.configure(bg='white')
-    cv_window.state("zoomed")
-    
-    entry_data = []
-    
-    def upload_cv():
-        """Collect form data and create CV."""
-        cv_data = {
-            "FirstName": entry_data[0].get(),
-            "LastName": entry_data[1].get(),
-            "StreetName": entry_data[2].get(),
-            "HouseNumber": entry_data[3].get(),
-            "City": entry_data[4].get(),
-            "Country": entry_data[5].get(),
-            "TelephoneNumber": entry_data[6].get(),
-            "EmailAddress": entry_data[7].get(),
-            "Sex": entry_data[8].get(),
-            "DateOfBirth": entry_data[9].get(),
-            "Nationality": entry_data[10].get(),
-            "Workplace1": entry_data[11].get(),
-            "Dates1": entry_data[12].get(),
-            "Occupation1": entry_data[13].get(),
-            "MainActivities1": entry_data[14].get(),
-            "Workplace2": entry_data[15].get(),
-            "Dates2": entry_data[16].get(),
-            "Occupation2": entry_data[17].get(),
-            "MainActivities2": entry_data[18].get(),
-            "Workplace3": entry_data[19].get(),
-            "Dates3": entry_data[20].get(),
-            "Occupation3": entry_data[21].get(),
-            "MainActivities3": entry_data[22].get(),
-            "HighSchool": entry_data[23].get(),
-            "College/University": entry_data[24].get(),
-            "SubjectsStudied": entry_data[25].get(),
-            "YearsStudied": entry_data[26].get(),
-            "QualificationsAwarded": entry_data[27].get(),
-            "Master1": entry_data[28].get(),
-            "Master2": entry_data[29].get(),
-            "CommunicationSkills": entry_data[30].get(),
-            "OrganizationalManagerialSkills": entry_data[31].get(),
-            "JobRelatedSkills": entry_data[32].get(),
-            "ComputerSkills": entry_data[33].get(),
-            "OtherSkills": entry_data[34].get(),
-            "DrivingLicense": entry_data[35].get(),
-            "MotherLanguage": entry_data[36].get(),
-            "ModernLanguage1": entry_data[37].get(),
-            "Level1": entry_data[38].get(),
-            "ModernLanguage2": entry_data[39].get(),
-            "Level2": entry_data[40].get(),
-            "Publications": entry_data[41].get(),
-            "Presentations": entry_data[42].get(),
-            "Projects": entry_data[43].get(),
-            "Conferences": entry_data[44].get(),
-            "HonoursAndAwards": entry_data[45].get(),
-            "Memberships": entry_data[46].get(),
-            "ShortDescription": entry_data[47].get(),
-            "Hobbies": entry_data[48].get(),
-            "PersonalityTypeMB": "",
-            "PersonalityTypeBF": "",
-            "Score": 0
-        }
-        persons_list.append(cv_data)
-        cv_window.destroy()
-        
-        # Write CV file and update listbox
-        file_path = write_cv_file(cv_data)
-        listbox.insert(END, file_path)
-        
-        if on_cv_created:
-            on_cv_created(cv_data)
-    
+    cv_window.title("Create New CV")
+    cv_window.configure(bg="#f5f5f5")
+
+    # Try to maximize window
+    try:
+        cv_window.state("zoomed")
+    except TclError:
+        cv_window.attributes("-zoomed", True)
+
+    entry_widgets = {}  # Store entry widgets by field name
+
+    def validate_and_upload():
+        """Validate form data and create CV."""
+        # Collect form data
+        cv_data = create_empty_cv()
+
+        for field_name, widget in entry_widgets.items():
+            value = widget.get().strip()
+            cv_data[field_name] = value
+
+        # Validate
+        is_valid, errors = validate_cv_data(cv_data)
+
+        if not is_valid:
+            messagebox.showerror(
+                "Validation Error",
+                "Please fix the following issues:\n\n" + "\n".join(errors),
+            )
+            return
+
+        # Additional check: at least a name is required
+        if not cv_data.get("FirstName") and not cv_data.get("LastName"):
+            messagebox.showerror(
+                "Name Required", "Please enter at least a first name or last name."
+            )
+            return
+
+        try:
+            # Write CV file
+            file_path = write_cv_file(cv_data)
+
+            # Add to persons list
+            persons_list.append(cv_data)
+
+            # Update listbox with summary
+            summary = get_cv_summary(cv_data)
+            listbox.insert(END, summary)
+
+            # Call callback if provided
+            if on_cv_created:
+                on_cv_created(cv_data, file_path)
+
+            # Show success message
+            messagebox.showinfo(
+                "CV Created", f"CV saved successfully!\n\nFile: {file_path}"
+            )
+
+            cv_window.destroy()
+
+        except OSError as e:
+            messagebox.showerror("File Error", f"Could not save CV file:\n{str(e)}")
+        except Exception as e:
+            messagebox.showerror("Error", f"An unexpected error occurred:\n{str(e)}")
+
     def on_mousewheel(event):
         canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-    
+
     def bind_to_mousewheel(event):
         canvas.bind_all("<MouseWheel>", on_mousewheel)
-    
+
     def unbind_from_mousewheel(event):
         canvas.unbind_all("<MouseWheel>")
-    
-    def make_label_entry(frame, text, row, column, entry_width):
-        """Create a label and optional entry field."""
-        label = Label(frame, text=text, bg="darkorange", fg="white",
-                      height=1, font=('calibre', 14))
-        label.grid(row=row, column=column, sticky='e', padx=10, pady=10, ipady=3)
-        
-        if entry_width != 0:
-            name = StringVar()
-            entry_data.append(name)
-            entry = Entry(frame, textvariable=name, width=entry_width, font=('calibre', 12))
-            entry.grid(row=row, column=column + 1, columnspan=3, sticky='w', padx=30, pady=10, ipady=3)
-    
-    # Frame of the whole CV window
-    frame_window = Frame(cv_window, bg="indianred")
+
+    def create_section_header(frame, text, row):
+        """Create a section header label."""
+        Label(
+            frame,
+            text=text,
+            bg="#4a90d9",
+            fg="white",
+            font=("calibre", 14, "bold"),
+            padx=10,
+            pady=5,
+        ).grid(row=row, column=0, columnspan=4, sticky="ew", pady=(15, 5))
+
+    def create_field(
+        frame, label_text, field_name, row, col=0, width=40, required=False
+    ):
+        """Create a label and entry field pair."""
+        # Label
+        label = label_text
+        if required:
+            label += " *"
+
+        Label(
+            frame, text=label, bg="#f0f0f0", fg="#333", font=("calibre", 11), anchor="e"
+        ).grid(row=row, column=col, sticky="e", padx=(20, 10), pady=5)
+
+        # Entry
+        entry_var = StringVar()
+        entry = Entry(
+            frame,
+            textvariable=entry_var,
+            width=width,
+            font=("calibre", 11),
+            bg="white",
+            fg="black",
+        )
+        entry.grid(row=row, column=col + 1, sticky="w", padx=10, pady=5)
+
+        entry_widgets[field_name] = entry_var
+        return entry
+
+    # Main container frame
+    frame_window = Frame(cv_window, bg="#f5f5f5")
+    frame_window.pack(expand=True, fill=BOTH)
     frame_window.rowconfigure(0, weight=1)
     frame_window.columnconfigure(0, weight=1)
-    frame_window.pack(expand=True, fill=BOTH)
-    
+
     # Canvas + Scrollbar
-    canvas = Canvas(frame_window, bg="firebrick")
-    canvas.grid(row=0, column=0, sticky='nwes')
+    canvas = Canvas(frame_window, bg="#f5f5f5", highlightthickness=0)
+    canvas.grid(row=0, column=0, sticky="nsew")
+
     scrollbar = Scrollbar(frame_window, orient="vertical", command=canvas.yview)
-    scrollbar.grid(row=0, column=1, sticky='ns')
-    
-    # Frame in Canvas
-    frame = Frame(canvas, relief="groove", bg="palegoldenrod")
-    
-    # Title Frame
-    frame_title = Frame(frame, bg="darkgray", height=200)
-    frame_title.pack(side=TOP, fill=BOTH, expand=True)
-    label = Label(frame_title, text="Curriculum Vitae", bg="slategray", fg="white", height=1,
-                  font=('helvetica', 26, "bold", "underline"))
-    label.place(relx=0.5, rely=0.1, anchor='n')
-    
-    # CV Frame
-    frame_cv = Frame(frame, relief="groove", bg="palegoldenrod")
-    frame_cv.pack(side=TOP, fill=BOTH, expand=True)
-    
-    # Bottom Frame
-    frame_bottom = Frame(frame, bg="orange", height=300)
-    frame_bottom.pack(side=BOTTOM, fill=BOTH, expand=True)
-    button_upload = Button(frame_bottom, text="Upload CV", command=upload_cv,
-                           bg="saddlebrown", fg="white", activebackground="sandybrown", activeforeground="white",
-                           height=3, width=10, font=('calibre', 20))
-    button_upload.place(relx=0.5, rely=0.5, anchor=CENTER)
-    
-    # Configure grid columns
-    for i in range(9):
-        frame_cv.columnconfigure(i, weight=1)
-    
-    canvas.create_window((0, 0), window=frame, anchor='nw')
-    
-    # Create form fields
-    make_label_entry(frame_cv, "First-Name : ", 0, 0, 25)
-    make_label_entry(frame_cv, "Last-Name : ", 1, 0, 25)
-    make_label_entry(frame_cv, "Address : ", 2, 0, 0)
-    make_label_entry(frame_cv, "Street Name : ", 3, 1, 60)
-    make_label_entry(frame_cv, "House Number : ", 4, 1, 10)
-    make_label_entry(frame_cv, "City : ", 5, 1, 30)
-    make_label_entry(frame_cv, "Country : ", 6, 1, 30)
-    make_label_entry(frame_cv, "Telephone Number : ", 7, 0, 25)
-    make_label_entry(frame_cv, "E-mail Address : ", 8, 0, 25)
-    make_label_entry(frame_cv, "Sex : ", 9, 0, 10)
-    make_label_entry(frame_cv, "Date of Birth : ", 10, 0, 20)
-    make_label_entry(frame_cv, "Nationality : ", 11, 0, 20)
-    make_label_entry(frame_cv, "Work Experience : ", 12, 0, 0)
-    make_label_entry(frame_cv, "Workplace 1 : ", 13, 1, 40)
-    make_label_entry(frame_cv, "Dates : ", 14, 2, 20)
-    make_label_entry(frame_cv, "Occupation : ", 15, 2, 40)
-    make_label_entry(frame_cv, "Main activities : ", 16, 2, 50)
-    make_label_entry(frame_cv, "Workplace 2 : ", 17, 1, 40)
-    make_label_entry(frame_cv, "Dates : ", 18, 2, 20)
-    make_label_entry(frame_cv, "Occupation : ", 19, 2, 40)
-    make_label_entry(frame_cv, "Main activities : ", 20, 2, 50)
-    make_label_entry(frame_cv, "Workplace 3 : ", 21, 1, 40)
-    make_label_entry(frame_cv, "Dates : ", 22, 2, 20)
-    make_label_entry(frame_cv, "Occupation : ", 23, 2, 40)
-    make_label_entry(frame_cv, "Main activities : ", 24, 2, 50)
-    make_label_entry(frame_cv, "Education and Training : ", 25, 0, 0)
-    make_label_entry(frame_cv, "High school : ", 26, 1, 40)
-    make_label_entry(frame_cv, "College/University : ", 27, 1, 40)
-    make_label_entry(frame_cv, "Subjects studied : ", 28, 1, 50)
-    make_label_entry(frame_cv, "Years studied : ", 29, 1, 50)
-    make_label_entry(frame_cv, "Qualifications awarded : ", 30, 1, 50)
-    make_label_entry(frame_cv, "Master 1 : ", 31, 1, 50)
-    make_label_entry(frame_cv, "Master 2 : ", 32, 1, 50)
-    make_label_entry(frame_cv, "Personal Skills : ", 33, 0, 0)
-    make_label_entry(frame_cv, "Communication skills : ", 34, 1, 60)
-    make_label_entry(frame_cv, "Organizational / managerial skills : ", 35, 1, 60)
-    make_label_entry(frame_cv, "Job-related skills : ", 36, 1, 60)
-    make_label_entry(frame_cv, "Computer skills : ", 37, 1, 60)
-    make_label_entry(frame_cv, "Other skills : ", 38, 1, 60)
-    make_label_entry(frame_cv, "Driving license : ", 39, 1, 15)
-    make_label_entry(frame_cv, "Languages : ", 40, 0, 0)
-    make_label_entry(frame_cv, "Mother Language : ", 41, 1, 30)
-    make_label_entry(frame_cv, "Other Languages : ", 42, 1, 0)
-    make_label_entry(frame_cv, "Modern Language 1 : ", 43, 2, 30)
-    make_label_entry(frame_cv, "Level1 : ", 44, 3, 10)
-    make_label_entry(frame_cv, "Modern Language 2 : ", 45, 2, 30)
-    make_label_entry(frame_cv, "Level2 : ", 46, 3, 10)
-    make_label_entry(frame_cv, "Additional Information: ", 47, 0, 0)
-    make_label_entry(frame_cv, "Publications : ", 48, 1, 60)
-    make_label_entry(frame_cv, "Presentations : ", 49, 1, 60)
-    make_label_entry(frame_cv, "Projects : ", 50, 1, 60)
-    make_label_entry(frame_cv, "Conferences : ", 51, 1, 60)
-    make_label_entry(frame_cv, "Honours and awards : ", 52, 1, 60)
-    make_label_entry(frame_cv, "Memberships : ", 53, 1, 60)
-    make_label_entry(frame_cv, "Short Description : ", 54, 0, 100)
-    make_label_entry(frame_cv, "Hobbies : ", 55, 0, 100)
-    
-    frame.update_idletasks()
+    scrollbar.grid(row=0, column=1, sticky="ns")
+
+    # Scrollable frame
+    scroll_frame = Frame(canvas, bg="#f5f5f5")
+
+    # Title
+    title_frame = Frame(scroll_frame, bg="#2c3e50", height=80)
+    title_frame.pack(fill=X)
+    Label(
+        title_frame,
+        text="Create New Curriculum Vitae",
+        bg="#2c3e50",
+        fg="white",
+        font=("Helvetica", 24, "bold"),
+        pady=20,
+    ).pack()
+
+    # Form frame
+    form_frame = Frame(scroll_frame, bg="#f0f0f0", padx=30, pady=20)
+    form_frame.pack(fill=BOTH, expand=True, padx=20, pady=20)
+
+    # Configure grid
+    for i in range(4):
+        form_frame.columnconfigure(i, weight=1)
+
+    row = 0
+
+    # Personal Information Section
+    create_section_header(form_frame, "Personal Information", row)
+    row += 1
+
+    create_field(form_frame, "First Name:", "FirstName", row, 0, 30, required=True)
+    create_field(form_frame, "Last Name:", "LastName", row, 2, 30, required=True)
+    row += 1
+
+    create_field(form_frame, "Street Name:", "StreetName", row, 0, 50)
+    create_field(form_frame, "House Number:", "HouseNumber", row, 2, 15)
+    row += 1
+
+    create_field(form_frame, "City:", "City", row, 0, 30)
+    create_field(form_frame, "Country:", "Country", row, 2, 30)
+    row += 1
+
+    create_field(form_frame, "Telephone:", "TelephoneNumber", row, 0, 25)
+    create_field(form_frame, "Email:", "EmailAddress", row, 2, 35)
+    row += 1
+
+    create_field(form_frame, "Sex:", "Sex", row, 0, 10)
+    create_field(form_frame, "Date of Birth:", "DateOfBirth", row, 2, 15)
+    row += 1
+
+    create_field(form_frame, "Nationality:", "Nationality", row, 0, 25)
+    row += 1
+
+    # Work Experience Section
+    create_section_header(form_frame, "Work Experience", row)
+    row += 1
+
+    for i in [1, 2, 3]:
+        Label(
+            form_frame,
+            text=f"Position {i}",
+            bg="#f0f0f0",
+            fg="#4a90d9",
+            font=("calibre", 11, "bold"),
+        ).grid(row=row, column=0, sticky="w", padx=20, pady=(10, 0))
+        row += 1
+
+        create_field(form_frame, "Company:", f"Workplace{i}", row, 0, 40)
+        create_field(
+            form_frame, "Dates (DD.MM.YYYY - DD.MM.YYYY):", f"Dates{i}", row, 2, 30
+        )
+        row += 1
+
+        create_field(form_frame, "Job Title:", f"Occupation{i}", row, 0, 40)
+        row += 1
+
+        create_field(form_frame, "Main Activities:", f"MainActivities{i}", row, 0, 80)
+        row += 1
+
+    # Education Section
+    create_section_header(form_frame, "Education & Training", row)
+    row += 1
+
+    create_field(form_frame, "High School:", "HighSchool", row, 0, 50)
+    row += 1
+
+    create_field(form_frame, "University/College:", "College/University", row, 0, 50)
+    row += 1
+
+    create_field(form_frame, "Subjects Studied:", "SubjectsStudied", row, 0, 60)
+    create_field(form_frame, "Years:", "YearsStudied", row, 2, 5)
+    row += 1
+
+    create_field(form_frame, "Qualifications:", "QualificationsAwarded", row, 0, 60)
+    row += 1
+
+    create_field(form_frame, "Master's Degree 1:", "Master1", row, 0, 50)
+    row += 1
+
+    create_field(form_frame, "Master's Degree 2:", "Master2", row, 0, 50)
+    row += 1
+
+    # Skills Section
+    create_section_header(form_frame, "Skills", row)
+    row += 1
+
+    create_field(form_frame, "Communication Skills:", "CommunicationSkills", row, 0, 80)
+    row += 1
+
+    create_field(
+        form_frame,
+        "Organizational/Managerial:",
+        "OrganizationalManagerialSkills",
+        row,
+        0,
+        80,
+    )
+    row += 1
+
+    create_field(form_frame, "Job-Related Skills:", "JobRelatedSkills", row, 0, 80)
+    row += 1
+
+    create_field(form_frame, "Computer Skills:", "ComputerSkills", row, 0, 80)
+    row += 1
+
+    create_field(form_frame, "Other Skills:", "OtherSkills", row, 0, 80)
+    row += 1
+
+    create_field(form_frame, "Driving License:", "DrivingLicense", row, 0, 15)
+    row += 1
+
+    # Languages Section
+    create_section_header(form_frame, "Languages", row)
+    row += 1
+
+    create_field(form_frame, "Mother Language:", "MotherLanguage", row, 0, 30)
+    row += 1
+
+    create_field(form_frame, "Language 1:", "ModernLanguage1", row, 0, 25)
+    create_field(form_frame, "Level:", "Level1", row, 2, 15)
+    row += 1
+
+    create_field(form_frame, "Language 2:", "ModernLanguage2", row, 0, 25)
+    create_field(form_frame, "Level:", "Level2", row, 2, 15)
+    row += 1
+
+    # Additional Information Section
+    create_section_header(form_frame, "Additional Information", row)
+    row += 1
+
+    create_field(form_frame, "Publications:", "Publications", row, 0, 80)
+    row += 1
+
+    create_field(form_frame, "Presentations:", "Presentations", row, 0, 80)
+    row += 1
+
+    create_field(form_frame, "Projects:", "Projects", row, 0, 80)
+    row += 1
+
+    create_field(form_frame, "Conferences:", "Conferences", row, 0, 80)
+    row += 1
+
+    create_field(form_frame, "Honours & Awards:", "HonoursAndAwards", row, 0, 80)
+    row += 1
+
+    create_field(form_frame, "Memberships:", "Memberships", row, 0, 80)
+    row += 1
+
+    # Personality Section
+    create_section_header(form_frame, "About You", row)
+    row += 1
+
+    Label(
+        form_frame,
+        text="Short Description (personality traits, work style):",
+        bg="#f0f0f0",
+        fg="#333",
+        font=("calibre", 11),
+    ).grid(row=row, column=0, columnspan=2, sticky="w", padx=20, pady=(10, 5))
+    row += 1
+
+    desc_var = StringVar()
+    entry_widgets["ShortDescription"] = desc_var
+    Entry(
+        form_frame, textvariable=desc_var, width=100, font=("calibre", 11), bg="white"
+    ).grid(row=row, column=0, columnspan=4, sticky="w", padx=20, pady=5)
+    row += 1
+
+    Label(
+        form_frame,
+        text="Hobbies & Interests (comma-separated):",
+        bg="#f0f0f0",
+        fg="#333",
+        font=("calibre", 11),
+    ).grid(row=row, column=0, columnspan=2, sticky="w", padx=20, pady=(10, 5))
+    row += 1
+
+    hobbies_var = StringVar()
+    entry_widgets["Hobbies"] = hobbies_var
+    Entry(
+        form_frame,
+        textvariable=hobbies_var,
+        width=100,
+        font=("calibre", 11),
+        bg="white",
+    ).grid(row=row, column=0, columnspan=4, sticky="w", padx=20, pady=5)
+    row += 1
+
+    # Submit Button
+    button_frame = Frame(scroll_frame, bg="#2c3e50", height=100)
+    button_frame.pack(fill=X, pady=20)
+
+    Button(
+        button_frame,
+        text="Create CV",
+        command=validate_and_upload,
+        bg="#27ae60",
+        fg="white",
+        activebackground="#2ecc71",
+        activeforeground="white",
+        font=("calibre", 16, "bold"),
+        padx=40,
+        pady=10,
+    ).pack(pady=30)
+
+    Label(
+        button_frame,
+        text="* Required fields",
+        bg="#2c3e50",
+        fg="#aaa",
+        font=("calibre", 10),
+    ).pack()
+
+    # Configure canvas
+    canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
+    scroll_frame.update_idletasks()
     canvas.configure(yscrollcommand=scrollbar.set, scrollregion=canvas.bbox("all"))
+
+    # Bind mousewheel
     canvas.bind("<Enter>", bind_to_mousewheel)
     canvas.bind("<Leave>", unbind_from_mousewheel)

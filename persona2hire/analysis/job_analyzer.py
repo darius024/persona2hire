@@ -1,6 +1,8 @@
 """Job analysis and matching algorithms."""
 
 from datetime import date
+from typing import Optional
+
 from ..data.job_sectors import JobSectors
 from ..data.constants import (
     Functions,
@@ -13,6 +15,18 @@ from ..data.constants import (
 )
 
 
+# Scoring weights - these determine how much each category contributes to total score
+# All weights should sum to approximately 100 for a perfect candidate
+WEIGHTS = {
+    "education": 25,  # Max 25 points for education
+    "work_experience": 30,  # Max 30 points for work experience
+    "skills": 20,  # Max 20 points for skills match
+    "languages": 10,  # Max 10 points for languages
+    "soft_skills": 10,  # Max 10 points for soft skills
+    "additional": 5,  # Max 5 points for publications, awards, etc.
+}
+
+
 def analyze_job(person: dict, sector: str) -> float:
     """
     Analyze a person's fit for a specific job sector.
@@ -22,38 +36,30 @@ def analyze_job(person: dict, sector: str) -> float:
         sector: Job sector key from JobSectors
 
     Returns:
-        Total score for the person-sector match
+        Total score for the person-sector match (0-100 scale)
     """
     if sector not in JobSectors:
-        return 0
+        return 0.0
 
-    # Education Score
-    job_score = _calculate_education_score(person, sector)
-
-    # Work Experience Score
+    # Calculate normalized scores for each category
+    education_score = _calculate_education_score(person, sector)
     work_score = _calculate_work_score(person, sector)
-
-    # Language Score
-    language_score = _calculate_language_score(person)
-
-    # Skills Score
     skills_score = _calculate_skills_score(person, sector)
-
-    # Additional Information Score
-    information_score = _calculate_information_score(person)
-
-    # Soft Skills Score
+    language_score = _calculate_language_score(person)
     soft_skills_score = _calculate_soft_skills_score(person)
+    additional_score = _calculate_additional_score(person)
 
+    # Sum all scores (each is already weighted)
     total_score = (
-        job_score
+        education_score
         + work_score
         + skills_score
         + language_score
-        + information_score
         + soft_skills_score
+        + additional_score
     )
-    return total_score
+
+    return round(total_score, 1)
 
 
 def analyze_jobs(person: dict) -> list:
@@ -74,191 +80,251 @@ def analyze_jobs(person: dict) -> list:
     return job_list
 
 
+def get_score_breakdown(person: dict, sector: str) -> dict:
+    """
+    Get a detailed breakdown of the scoring for a person-sector match.
+
+    Args:
+        person: Dictionary containing CV data
+        sector: Job sector key from JobSectors
+
+    Returns:
+        Dictionary with scores for each category
+    """
+    if sector not in JobSectors:
+        return {}
+
+    return {
+        "education": _calculate_education_score(person, sector),
+        "work_experience": _calculate_work_score(person, sector),
+        "skills": _calculate_skills_score(person, sector),
+        "languages": _calculate_language_score(person),
+        "soft_skills": _calculate_soft_skills_score(person),
+        "additional": _calculate_additional_score(person),
+        "max_education": WEIGHTS["education"],
+        "max_work_experience": WEIGHTS["work_experience"],
+        "max_skills": WEIGHTS["skills"],
+        "max_languages": WEIGHTS["languages"],
+        "max_soft_skills": WEIGHTS["soft_skills"],
+        "max_additional": WEIGHTS["additional"],
+    }
+
+
 def _calculate_education_score(person: dict, sector: str) -> float:
-    """Calculate education-related score."""
-    score = 0
+    """
+    Calculate education-related score (0 to WEIGHTS['education']).
+
+    Scoring breakdown:
+    - Qualification level: 0-10 points (scaled by level 0-6)
+    - Subject/field match: 0-10 points
+    - University prestige: 0-5 points
+    """
+    max_score = WEIGHTS["education"]
+    raw_score = 0.0
+
     sector_data = JobSectors[sector]
     education_keywords = sector_data.get("School/College", [])
+    education_keywords_lower = [kw.lower() for kw in education_keywords]
 
-    # Years studied bonus
-    try:
-        years_studied = int(person.get("YearsStudied", 0) or 0)
-    except (ValueError, TypeError):
-        years_studied = 0
-
-    # High school matching
-    highschool = person.get("HighSchool", "").lower()
-    highschool_matches = sum(1 for kw in education_keywords if kw.lower() in highschool)
-    score += highschool_matches * 2
-
-    # College/University
-    college = person.get("College/University", "").lower()
-
-    # University ranking bonus
-    university_bonus = _get_university_bonus(college)
-    score += university_bonus
-
-    # Subject matching
-    subjects = person.get("SubjectsStudied", "").lower()
-    subject_matches = sum(1 for kw in education_keywords if kw.lower() in subjects)
-    score += subject_matches * 3
-
-    # Qualification level
-    qualifications = person.get("QualificationsAwarded", "").lower()
+    # Qualification level (0-10 points, scaled from 0-6 levels)
+    qualifications = _safe_lower(person.get("QualificationsAwarded", ""))
     qual_level = _get_qualification_level(qualifications)
-    score += qual_level * 5
 
-    # Qualification keyword matches
-    qual_matches = sum(1 for kw in education_keywords if kw.lower() in qualifications)
-    score += qual_matches * 2
-
-    # Master's degrees
-    master1 = person.get("Master1", "").lower()
-    master2 = person.get("Master2", "").lower()
-    master_matches = sum(
-        1 for kw in education_keywords if kw.lower() in master1 or kw.lower() in master2
-    )
-    score += master_matches * 4
-
-    # If they have masters, add bonus
+    # Also check for Master's degrees
+    master1 = _safe_lower(person.get("Master1", ""))
+    master2 = _safe_lower(person.get("Master2", ""))
     if master1 or master2:
-        score += 10
+        qual_level = max(qual_level, 5)  # At least Master's level
 
-    # Apply years studied multiplier
-    if years_studied > 0:
-        score *= 1 + years_studied * 0.1
+    raw_score += (qual_level / 6.0) * 10
 
-    return score
+    # Subject/field match (0-10 points)
+    field_match_score = 0.0
+
+    # Check subjects studied
+    subjects = _safe_lower(person.get("SubjectsStudied", ""))
+    matched_subjects = set()
+    for kw in education_keywords_lower:
+        if kw in subjects and kw not in matched_subjects:
+            field_match_score += 2
+            matched_subjects.add(kw)
+
+    # Check qualifications text for field keywords
+    for kw in education_keywords_lower:
+        if kw in qualifications and kw not in matched_subjects:
+            field_match_score += 1.5
+            matched_subjects.add(kw)
+
+    # Check master's degrees for field keywords
+    masters_text = f"{master1} {master2}"
+    for kw in education_keywords_lower:
+        if kw in masters_text and kw not in matched_subjects:
+            field_match_score += 2
+            matched_subjects.add(kw)
+
+    raw_score += min(10.0, field_match_score)
+
+    # University prestige (0-5 points)
+    college = _safe_lower(person.get("College/University", ""))
+    university_bonus = _get_university_bonus(college)
+    raw_score += university_bonus
+
+    # Normalize to max weight
+    return min(max_score, (raw_score / 25.0) * max_score)
 
 
-def _get_university_bonus(college_text: str) -> int:
-    """Get bonus points based on university ranking."""
-    college_lower = college_text.lower()
+def _get_university_bonus(college_text: str) -> float:
+    """Get bonus points based on university ranking (0-5 points)."""
+    if not college_text:
+        return 0.0
 
     # Check Top 50
     for uni_name in Top50Universities:
-        if uni_name in college_lower:
-            return 30  # Top 50 bonus
+        if uni_name.lower() in college_text:
+            return 5.0
 
     # Check Top 100
     for uni_name in Top100Universities:
-        if uni_name in college_lower:
-            return 20  # Top 100 bonus
+        if uni_name.lower() in college_text:
+            return 3.5
 
-    # Generic university mention
-    if "university" in college_lower or "college" in college_lower:
-        return 10
+    # Any university mentioned
+    if "university" in college_text or "college" in college_text:
+        return 2.0
 
-    return 0
+    return 0.0
 
 
 def _get_qualification_level(qualifications_text: str) -> int:
-    """Get the highest qualification level from text."""
+    """Get the highest qualification level from text (0-6)."""
     max_level = 0
-    qual_lower = qualifications_text.lower()
+
+    if not qualifications_text:
+        return max_level
 
     for level, keywords in Qualifications.items():
         for keyword in keywords:
-            if keyword.lower() in qual_lower:
+            if keyword.lower() in qualifications_text:
                 max_level = max(max_level, level)
 
     return max_level
 
 
 def _calculate_work_score(person: dict, sector: str) -> float:
-    """Calculate work experience score."""
-    score = 0
+    """
+    Calculate work experience score (0 to WEIGHTS['work_experience']).
+
+    Scoring breakdown:
+    - Total years of experience: 0-12 points
+    - Seniority level: 0-8 points
+    - Sector relevance: 0-10 points
+    """
+    max_score = WEIGHTS["work_experience"]
+    raw_score = 0.0
+
     sector_data = JobSectors[sector]
     work_keywords = sector_data.get("WorkExperience", [])
+    work_keywords_lower = [kw.lower() for kw in work_keywords]
+
+    total_years = 0.0
+    max_seniority = 0
+    relevance_score = 0.0
+    matched_keywords = set()
 
     # Process each workplace (1-3)
     for i in range(1, 4):
-        workplace = person.get(f"Workplace{i}", "")
-        dates = person.get(f"Dates{i}", "")
-        occupation = person.get(f"Occupation{i}", "")
-        activities = person.get(f"MainActivities{i}", "")
+        workplace = _safe_str(person.get(f"Workplace{i}", ""))
+        dates = _safe_str(person.get(f"Dates{i}", ""))
+        occupation = _safe_str(person.get(f"Occupation{i}", ""))
+        activities = _safe_str(person.get(f"MainActivities{i}", ""))
 
         if not workplace:
             continue
 
-        # Base score for having work experience
-        workplace_score = 5
-
         # Calculate time worked
-        time_worked = _calculate_time_worked(dates)
+        years_worked = _calculate_time_worked(dates)
+        total_years += years_worked
 
         # Get seniority level
         seniority = _get_seniority_level(occupation)
+        max_seniority = max(max_seniority, seniority)
 
-        # Keyword matching in workplace
-        workplace_lower = workplace.lower()
-        for kw in work_keywords:
-            if kw.lower() in workplace_lower:
-                workplace_score += 3
+        # Check for keyword matches (relevance)
+        all_text = f"{workplace} {occupation} {activities}".lower()
+        for kw in work_keywords_lower:
+            if kw in all_text and kw not in matched_keywords:
+                relevance_score += 2.5
+                matched_keywords.add(kw)
 
-        # Keyword matching in occupation
-        occupation_lower = occupation.lower()
-        for kw in work_keywords:
-            if kw.lower() in occupation_lower:
-                workplace_score += 2
+    # Years of experience (cap at 10+ years = max points)
+    years_points = min(12.0, total_years * 1.2)
+    raw_score += years_points
 
-        # Keyword matching in activities
-        activities_lower = activities.lower()
-        for kw in work_keywords:
-            if kw.lower() in activities_lower:
-                workplace_score += 1
+    # Seniority level (0-6 scale mapped to 0-8 points)
+    raw_score += (max_seniority / 6.0) * 8
 
-        # Apply multipliers
-        time_multiplier = 1 + (time_worked * 0.2)  # 20% bonus per year
-        seniority_multiplier = 1 + (seniority * 0.15)  # 15% bonus per seniority level
+    # Sector relevance (capped at 10)
+    raw_score += min(10.0, relevance_score)
 
-        score += workplace_score * time_multiplier * seniority_multiplier
-
-    return score
+    # Normalize to max weight
+    return min(max_score, (raw_score / 30.0) * max_score)
 
 
 def _calculate_time_worked(dates_str: str) -> float:
     """Calculate years worked from date range string."""
     if not dates_str or "-" not in dates_str:
-        return 0
+        return 0.0
 
     try:
-        dates = dates_str.split("-")
-        date_start = dates[0].strip()
-        date_finish = dates[1].strip()
+        parts = dates_str.split("-")
+        if len(parts) != 2:
+            return 0.0
+
+        date_start = parts[0].strip()
+        date_finish = parts[1].strip()
 
         # Parse start date
-        date_parts_start = date_start.split(".")
-        if len(date_parts_start) >= 3:
-            start_date = date(
-                int(date_parts_start[2]),
-                int(date_parts_start[1]),
-                int(date_parts_start[0]),
-            )
-        else:
-            return 0
+        start_date = _parse_date(date_start)
+        if not start_date:
+            return 0.0
 
         # Parse end date
-        if date_finish.lower() in ["current", "present", "now", "ongoing"]:
+        if date_finish.lower() in ["current", "present", "now", "ongoing", ""]:
             end_date = date.today()
         else:
-            date_parts_end = date_finish.split(".")
-            if len(date_parts_end) >= 3:
-                end_date = date(
-                    int(date_parts_end[2]),
-                    int(date_parts_end[1]),
-                    int(date_parts_end[0]),
-                )
-            else:
+            end_date = _parse_date(date_finish)
+            if not end_date:
                 end_date = date.today()
 
-        return max(0, (end_date - start_date).days / 365)
+        years = (end_date - start_date).days / 365.25
+        return max(0.0, years)
+    except (ValueError, IndexError, AttributeError):
+        return 0.0
+
+
+def _parse_date(date_str: str) -> Optional[date]:
+    """Parse a date string in DD.MM.YYYY format."""
+    if not date_str:
+        return None
+
+    try:
+        parts = date_str.strip().split(".")
+        if len(parts) >= 3:
+            day = int(parts[0])
+            month = int(parts[1])
+            year = int(parts[2])
+            return date(year, month, day)
     except (ValueError, IndexError):
-        return 0
+        pass
+
+    return None
 
 
 def _get_seniority_level(occupation_text: str) -> int:
-    """Get seniority level from occupation text."""
+    """Get seniority level from occupation text (0-6)."""
+    if not occupation_text:
+        return 0
+
     occupation_lower = occupation_text.lower()
     max_level = 0
 
@@ -271,62 +337,87 @@ def _get_seniority_level(occupation_text: str) -> int:
 
 
 def _calculate_language_score(person: dict) -> float:
-    """Calculate language proficiency score."""
-    score = 0
+    """
+    Calculate language proficiency score (0 to WEIGHTS['languages']).
+    """
+    max_score = WEIGHTS["languages"]
+    raw_score = 0.0
 
-    # Mother language
-    mother_language = person.get("MotherLanguage", "").lower()
-    mother_value = _get_language_value(mother_language)
-    score += mother_value * 3  # Native language is more valuable
+    # Mother language (3 points if it's a global language)
+    mother_language = _safe_lower(person.get("MotherLanguage", ""))
+    mother_tier = _get_language_tier(mother_language)
+    raw_score += mother_tier * 1.0
 
     # Additional languages
     for i in range(1, 3):
-        language = person.get(f"ModernLanguage{i}", "").lower()
-        level = person.get(f"Level{i}", "").lower().strip()
+        language = _safe_lower(person.get(f"ModernLanguage{i}", ""))
+        level = _safe_lower(person.get(f"Level{i}", ""))
 
         if language:
-            lang_value = _get_language_value(language)
-            level_score = _get_level_score(level)
-            score += lang_value * level_score * 0.5
+            lang_tier = _get_language_tier(language)
+            level_multiplier = _get_level_multiplier(level)
+            raw_score += lang_tier * level_multiplier * 0.5
 
-    return score
+    # Normalize to max weight (max raw = ~12 if trilingual with top languages)
+    return min(max_score, (raw_score / 12.0) * max_score)
 
 
-def _get_language_value(language: str) -> int:
-    """Get the business value of a language."""
-    language_lower = language.lower()
+def _get_language_tier(language: str) -> int:
+    """Get the business value tier of a language (1-3)."""
+    if not language:
+        return 0
 
     for tier, languages in Languages.items():
-        if language_lower in [l.lower() for l in languages]:
-            return tier * 2
+        if language in [lang.lower() for lang in languages]:
+            return tier
 
     return 1  # Default for unknown languages
 
 
-def _get_level_score(level: str) -> int:
-    """Convert language level to numeric score."""
-    level_lower = level.lower().strip()
+def _get_level_multiplier(level: str) -> float:
+    """Convert language level to a multiplier (0-1)."""
+    if not level:
+        return 0.3
 
-    if level_lower in LanguageLevels:
-        return LanguageLevels[level_lower]["score"]
+    level_clean = level.strip().lower()
 
-    # Try to match partial strings
+    # Check exact match first
+    if level_clean in LanguageLevels:
+        return LanguageLevels[level_clean]["score"] / 10.0
+
+    # Check partial matches
     for level_key, level_data in LanguageLevels.items():
-        if level_key in level_lower or level_lower in level_key:
-            return level_data["score"]
+        if level_key in level_clean or level_clean in level_key:
+            return level_data["score"] / 10.0
 
-    return 1  # Default
+    # Check for CEFR levels
+    cefr_scores = {
+        "a1": 0.2,
+        "a2": 0.3,
+        "b1": 0.5,
+        "b2": 0.7,
+        "c1": 0.9,
+        "c2": 1.0,
+    }
+    for cefr, score in cefr_scores.items():
+        if cefr in level_clean:
+            return score
+
+    return 0.3  # Default
 
 
 def _calculate_skills_score(person: dict, sector: str) -> float:
-    """Calculate skills matching score."""
-    score = 0
+    """
+    Calculate skills matching score (0 to WEIGHTS['skills']).
+    """
+    max_score = WEIGHTS["skills"]
+
     sector_data = JobSectors[sector]
     required_skills = sector_data.get("Skills", [])
     extra_skills = sector_data.get("ExtraSkills", [])
 
     # Gather all person's skills
-    all_skills = []
+    person_skills_text = ""
     for field in [
         "CommunicationSkills",
         "OrganizationalManagerialSkills",
@@ -334,90 +425,127 @@ def _calculate_skills_score(person: dict, sector: str) -> float:
         "ComputerSkills",
         "OtherSkills",
     ]:
-        skills_text = person.get(field, "").lower()
-        all_skills.extend([s.strip() for s in skills_text.split(",") if s.strip()])
+        person_skills_text += " " + _safe_lower(person.get(field, ""))
 
-    # Match required skills
+    # Count unique matched skills
+    matched_required = 0
+    matched_extra = 0
+
     for skill in required_skills:
-        skill_lower = skill.lower()
-        for person_skill in all_skills:
-            if skill_lower in person_skill or person_skill in skill_lower:
-                score += 5
-                break
+        if skill.lower() in person_skills_text:
+            matched_required += 1
 
-    # Match extra skills (lower weight)
     for skill in extra_skills:
-        skill_lower = skill.lower()
-        for person_skill in all_skills:
-            if skill_lower in person_skill or person_skill in skill_lower:
-                score += 2.5
-                break
+        if skill.lower() in person_skills_text:
+            matched_extra += 1
 
-    # Driving license bonus
-    driving = person.get("DrivingLicense", "").lower()
-    if driving and driving not in ["no", "none", ""]:
-        score += 5
+    # Score calculation
+    # Required skills are worth more
+    total_required = max(1, len(required_skills))
+    total_extra = max(1, len(extra_skills))
 
-    return score
+    required_ratio = matched_required / total_required
+    extra_ratio = matched_extra / total_extra
+
+    # 70% weight to required, 30% to extra skills
+    raw_score = (required_ratio * 0.7 + extra_ratio * 0.3) * max_score
+
+    # Driving license bonus (if sector seems to need it)
+    driving = _safe_lower(person.get("DrivingLicense", ""))
+    if driving and driving not in ["no", "none", "n/a"]:
+        raw_score += 1.0
+
+    return min(max_score, raw_score)
 
 
 def _calculate_soft_skills_score(person: dict) -> float:
-    """Calculate soft skills score based on descriptions and skills."""
-    score = 0
+    """
+    Calculate soft skills score (0 to WEIGHTS['soft_skills']).
+    """
+    max_score = WEIGHTS["soft_skills"]
 
     # Gather text to analyze
-    description = person.get("ShortDescription", "").lower()
-    comm_skills = person.get("CommunicationSkills", "").lower()
-    org_skills = person.get("OrganizationalManagerialSkills", "").lower()
+    all_text = ""
+    for field in [
+        "ShortDescription",
+        "CommunicationSkills",
+        "OrganizationalManagerialSkills",
+        "MainActivities1",
+        "MainActivities2",
+        "MainActivities3",
+    ]:
+        all_text += " " + _safe_lower(person.get(field, ""))
 
-    all_text = f"{description} {comm_skills} {org_skills}"
-
-    # Check for soft skills categories
+    # Count soft skill category matches
+    categories_matched = 0
     for category, keywords in SoftSkills.items():
-        matches = sum(1 for kw in keywords if kw.lower() in all_text)
-        score += matches * 2
+        for kw in keywords:
+            if kw.lower() in all_text:
+                categories_matched += 1
+                break  # Only count category once
 
-    return score
+    # Each category matched is worth some points
+    total_categories = len(SoftSkills)
+    ratio = categories_matched / max(1, total_categories)
+
+    return ratio * max_score
 
 
-def _calculate_information_score(person: dict) -> float:
-    """Calculate additional information score."""
-    score = 0
+def _calculate_additional_score(person: dict) -> float:
+    """
+    Calculate additional information score (0 to WEIGHTS['additional']).
 
-    # Publications (highly valued)
-    publications = person.get("Publications", "")
-    if publications and publications.strip():
-        pub_count = publications.count(",") + 1
-        score += pub_count * 5
+    Awards, publications, projects, etc.
+    """
+    max_score = WEIGHTS["additional"]
+    raw_score = 0.0
 
-    # Presentations
-    presentations = person.get("Presentations", "")
-    if presentations and presentations.strip():
-        pres_count = presentations.count(",") + 1
-        score += pres_count * 3
+    # Publications (high value)
+    publications = _safe_str(person.get("Publications", ""))
+    if publications:
+        pub_count = min(3, publications.count(",") + 1)
+        raw_score += pub_count * 0.5
+
+    # Honours and Awards (high value)
+    awards = _safe_str(person.get("HonoursAndAwards", ""))
+    if awards:
+        award_count = min(3, awards.count(",") + 1)
+        raw_score += award_count * 0.6
 
     # Projects
-    projects = person.get("Projects", "")
-    if projects and projects.strip():
-        proj_count = projects.count(",") + 1
-        score += proj_count * 3
+    projects = _safe_str(person.get("Projects", ""))
+    if projects:
+        proj_count = min(3, projects.count(",") + 1)
+        raw_score += proj_count * 0.3
+
+    # Presentations
+    presentations = _safe_str(person.get("Presentations", ""))
+    if presentations:
+        raw_score += 0.4
 
     # Conferences
-    conferences = person.get("Conferences", "")
-    if conferences and conferences.strip():
-        conf_count = conferences.count(",") + 1
-        score += conf_count * 2
-
-    # Honours and Awards (highly valued)
-    awards = person.get("HonoursAndAwards", "")
-    if awards and awards.strip():
-        award_count = awards.count(",") + 1
-        score += award_count * 6
+    conferences = _safe_str(person.get("Conferences", ""))
+    if conferences:
+        raw_score += 0.3
 
     # Memberships
-    memberships = person.get("Memberships", "")
-    if memberships and memberships.strip():
-        member_count = memberships.count(",") + 1
-        score += member_count * 2
+    memberships = _safe_str(person.get("Memberships", ""))
+    if memberships:
+        raw_score += 0.4
 
-    return score
+    return min(max_score, raw_score)
+
+
+# Utility functions
+
+
+def _safe_str(value) -> str:
+    """Safely convert value to string."""
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def _safe_lower(value) -> str:
+    """Safely convert value to lowercase string."""
+    return _safe_str(value).lower()
