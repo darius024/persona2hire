@@ -1,4 +1,94 @@
-"""Feature extraction from CV data for ML models."""
+"""
+Feature extraction from CV data for ML models.
+
+This module converts unstructured CV dictionary data into fixed-size numerical
+feature vectors suitable for machine learning models.
+
+Why Feature Engineering?
+========================
+ML models require numerical inputs of consistent dimensionality. CVs contain:
+- Text of varying lengths (descriptions, skills)
+- Structured but inconsistent data (dates, occupations)
+- Missing or optional fields
+
+The FeatureExtractor transforms this into 31 numerical features that capture
+the same information used by the rule-based scorer, allowing the ML model
+to learn potential weight adjustments.
+
+Feature Categories
+==================
+31 features organized into 7 categories:
+
+Education (5 features):
+- education_level: Qualification level (0-6 scale)
+- education_field_match: Ratio of matching education keywords
+- university_prestige: Top50=3, Top100=2, any=1, none=0
+- years_studied: Years of formal education
+- has_masters: Binary indicator
+
+Work Experience (6 features):
+- total_work_years: Sum of date ranges (capped at 20)
+- num_positions: Number of work entries (0-3)
+- max_seniority: Highest job title seniority (0-6)
+- work_field_match: Ratio of matching work keywords
+- current_employment: Binary, has "current" or "present"
+- avg_tenure: Average years per position
+
+Skills (5 features):
+- required_skills_match: Ratio of sector's required skills
+- extra_skills_match: Ratio of sector's extra skills
+- has_driving_license: Binary indicator
+- computer_skills_count: Number of listed computer skills
+- total_skills_words: Word count across skills fields
+
+Languages (4 features):
+- num_languages: Count including mother tongue
+- has_english: Binary indicator
+- max_language_level: Highest CEFR level (0-6)
+- mother_tongue_tier: Business value tier (1-3)
+
+Soft Skills (3 features):
+- soft_skills_categories: Number of category matches
+- has_leadership: Binary, leadership keywords present
+- has_communication: Binary, communication keywords present
+
+Additional (4 features):
+- publications_count: Number of publications listed
+- awards_count: Number of awards/honors
+- projects_count: Number of projects
+- professional_memberships: Binary indicator
+
+Personality (4 features):
+- personality_match: Binary, exact MBTI match
+- personality_partial_match: Binary, first 2 letters match
+- introversion_score: I=1, E=0, unknown=0.5
+- thinking_score: T=1, F=0, unknown=0.5
+
+Feature Normalization
+=====================
+Most features are already normalized or bounded:
+- Ratios: 0-1
+- Counts: Capped to prevent outliers (e.g., years capped at 20)
+- Binary: 0/1
+- Ordinals: Small integer ranges
+
+The ML model's StandardScaler further normalizes during training.
+
+Usage
+=====
+    from persona2hire.ml.feature_extractor import FeatureExtractor, extract_features
+    from persona2hire.data.job_sectors import JobSectors
+    
+    # Using class
+    extractor = FeatureExtractor(sector_data=JobSectors)
+    features = extractor.extract(cv_data, sector="Computers_ICT")
+    
+    # Using convenience function
+    features = extract_features(cv_data, "Computers_ICT", JobSectors)
+    
+    # Feature names for interpretation
+    print(FeatureExtractor.FEATURE_NAMES)  # 31 feature names
+"""
 
 import re
 from typing import Optional

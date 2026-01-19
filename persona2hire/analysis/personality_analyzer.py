@@ -1,4 +1,90 @@
-"""Personality analysis using Myers-Briggs Type Indicator (MBTI)."""
+"""
+Personality analysis using Myers-Briggs Type Indicator (MBTI) and Big Five.
+
+This module infers personality types from CV text content (descriptions, hobbies,
+skills). It's used both for personality insights and for job-personality matching
+bonuses in the scoring system.
+
+MBTI Analysis
+=============
+The Myers-Briggs Type Indicator classifies personalities across four dimensions:
+
+- I/E (Introversion/Extroversion): Energy direction (inward vs outward)
+- S/N (Sensing/iNtuition): Information processing (concrete vs abstract)
+- T/F (Thinking/Feeling): Decision making (logic vs values)
+- J/P (Judging/Perceiving): Lifestyle (structured vs flexible)
+
+These combine into 16 types (e.g., INTJ, ENFP).
+
+How Analysis Works
+==================
+1. Text sources are gathered: ShortDescription, Hobbies, skills fields
+2. Words are tokenized and normalized (lowercase, punctuation stripped)
+3. Each word is matched against curated word lists for each MBTI dimension
+4. Hobbies are mapped to personality indicators (e.g., "reading" → I, "sports" → E)
+5. Scores accumulate for each letter in each dimension pair
+6. The letter with higher score wins for each dimension
+
+Example:
+    Description: "analytical, organized, independent problem-solver"
+    - "analytical" → T (Thinking)
+    - "organized" → J (Judging)  
+    - "independent" → I (Introversion)
+    Result: I_TJ (with other dimensions determined by remaining text)
+
+Big Five (OCEAN) Analysis
+=========================
+Also analyzes the five-factor personality model:
+- Openness: Creativity, curiosity, unconventionality
+- Conscientiousness: Organization, discipline, responsibility
+- Extroversion: Sociability, energy, assertiveness
+- Agreeableness: Cooperation, empathy, trust
+- Neuroticism: Anxiety, emotional reactivity, stress
+
+Scores range from -100 to +100 based on high/low indicator word matches.
+
+Personality-Job Matching
+========================
+Each job sector in job_sectors.py defines preferred MBTI types. For example:
+- Computers_ICT prefers: INTJ, INTP, ISTJ, ENTJ
+- Healthcare prefers: ISFJ, ESFJ, ENFJ, INFJ
+
+If a candidate's inferred type matches:
+- Exact match: +5 bonus points
+- Partial match (first 2 letters): +2.5 bonus points
+
+Known Limitations
+=================
+1. Text-based inference is imprecise - not a valid psychological assessment
+2. Limited signal from short descriptions and hobby lists
+3. Word lists reflect Western/English personality associations
+4. MBTI itself is scientifically debated as a personality model
+5. Results should be treated as rough estimates, not definitive typing
+
+Usage
+=====
+    from persona2hire.analysis.personality_analyzer import (
+        analyze_personality,
+        get_personality_percentages,
+        get_big_five_profile,
+        get_career_suggestions,
+    )
+    
+    # Get 4-letter MBTI type
+    mbti_type = analyze_personality(cv_data)  # e.g., "INTJ"
+    
+    # Get percentage breakdown
+    percentages = get_personality_percentages(cv_data)
+    # {'I': 65.0, 'E': 35.0, 'S': 40.0, 'N': 60.0, ...}
+    
+    # Get Big Five profile
+    ocean = get_big_five_profile(cv_data)
+    # {'openness': 45.0, 'conscientiousness': 60.0, ...}
+    
+    # Get career suggestions for a type
+    careers = get_career_suggestions("INTJ")
+    # ['scientist', 'engineer', 'programmer', ...]
+"""
 
 from ..data.personality import Domains, Hobbies, PersonalityTypes, BigFive
 

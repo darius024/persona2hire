@@ -1,4 +1,87 @@
-"""Machine learning model for adaptive scoring."""
+"""
+Machine learning model for adaptive scoring.
+
+This module provides the core ML model used to predict and adjust CV scores.
+It supports both scikit-learn's GradientBoostingRegressor and a simple fallback
+linear model for environments without ML dependencies.
+
+Model Architecture
+==================
+Primary: Gradient Boosting Regression (scikit-learn)
+- Ensemble of decision trees trained sequentially
+- Each tree corrects errors from previous trees
+- Hyperparameters: 100 trees, max_depth=4, learning_rate=0.1
+
+Fallback: Linear Regression (pure Python)
+- Simple weighted sum: score = Σ(weight_i × feature_i) + bias
+- Trained via gradient descent (1000 iterations)
+- Used when scikit-learn is not installed
+
+Why Gradient Boosting?
+======================
+1. Handles non-linear feature relationships
+2. Resistant to overfitting with proper regularization
+3. Provides feature importance for interpretability
+4. Works well with moderate dataset sizes (100-10000 samples)
+5. Fast prediction time (~0.1ms per sample)
+
+Score Adjustment vs Replacement
+===============================
+The model provides an **adjustment factor** rather than replacing rule-based scores:
+
+    adjusted_score = rule_based_score × adjustment_factor
+    
+The adjustment factor is clamped to ±30%:
+    
+    factor = min(1.3, max(0.7, ml_score / rule_based_score))
+
+This design provides:
+- Explainable baselines (rule-based score always available)
+- Safety limits (ML can't cause wild score swings)
+- Graceful degradation (falls back to rule-based if ML fails)
+
+Model Persistence
+=================
+Models are saved as JSON with sklearn objects pickled separately:
+
+    data/models/
+    ├── scoring_model.json       # Weights, metrics, metadata
+    └── scoring_model_sklearn.pkl # sklearn model + scaler
+
+The JSON file contains everything needed for the fallback linear model,
+ensuring the system works even if sklearn is unavailable at load time.
+
+Training Metrics
+================
+The ModelMetrics dataclass tracks:
+- MAE (Mean Absolute Error): Average prediction error
+- RMSE (Root Mean Square Error): Penalizes large errors
+- R² (Coefficient of Determination): Variance explained
+
+Target metrics for trained model:
+- MAE < 10 points
+- RMSE < 15 points  
+- R² > 0.7
+
+Usage
+=====
+    from persona2hire.ml.model import ScoringModel, save_model, load_model
+    
+    # Create and train
+    model = ScoringModel(use_sklearn=True)
+    metrics = model.train(X, y, feature_names)
+    
+    # Predict
+    scores = model.predict(X_new)
+    single_score = model.predict_single(features)
+    
+    # Get adjustment factor
+    factor = model.get_adjustment_factor(features, base_score=72.0)
+    
+    # Save/load
+    save_model(model, "path/to/model.json")
+    loaded_model = load_model("path/to/model.json")
+"""
 
 import json
 import os
