@@ -1,73 +1,19 @@
 """
 CV file parsing functionality.
 
-This module handles reading and parsing structured CV text files into Python
-dictionaries that can be processed by the analysis modules.
+Parses structured CV text files (templates/cv_template.txt format) into dicts.
+Uses label-based parsing: scans for known field labels, extracts values after
+colons. Tracks context for nested fields (associates Dates/Occupation with
+correct Workplace number).
 
-CV File Format
-==============
-CVs must follow the template structure in templates/cv_template.txt with
-colon-separated key-value pairs:
+Supported date formats: DD.MM.YYYY, MM/DD/YYYY, YYYY-MM-DD, Month YYYY, YYYY.
+Date ranges: "01.01.2020 - 31.12.2023" or "01.01.2020 - current".
 
-    First-Name : John
-    Last-Name : Doe
-    City : London
-    
-    Work Experience :
-        Workplace 1 : Company Ltd
-            Dates : 01.01.2020 - current
-            Occupation : Software Developer
-            Main activities : Python, APIs, testing
+Tolerant of extra whitespace, blank lines, reordered sections.
+UTF-8 with Latin-1 fallback for encoding.
 
-Parsing Approach
-================
-The parser uses a **label-based approach** rather than line-position parsing:
-
-1. Each line is scanned for known field labels (case-insensitive)
-2. If a label is found, the value after the colon is extracted
-3. For nested fields (work experience), context is tracked to associate
-   sub-fields (Dates, Occupation) with the correct Workplace number
-
-This makes the parser tolerant of:
-- Extra blank lines
-- Varied whitespace around colons ("Key:" vs "Key :" vs "Key  :")
-- Reordered sections
-
-Supported Date Formats
-======================
-Date fields (DateOfBirth, Dates1/2/3) accept multiple formats:
-- DD.MM.YYYY (European): 01.06.2020
-- MM/DD/YYYY (US): 06/01/2020
-- YYYY-MM-DD (ISO): 2020-06-01
-- Month YYYY: June 2020
-- YYYY: 2020 (year only, assumes Jan 1)
-
-Date ranges use hyphen: "01.01.2020 - 31.12.2023" or "01.01.2020 - current"
-
-Encoding Handling
-=================
-The parser attempts UTF-8 first, falling back to Latin-1 for older files.
-
-Known Limitations
-=================
-1. Requires specific template structure - free-form CVs not supported
-2. Field labels must be in English
-3. Maximum 3 work experience entries
-4. No support for PDFs, Word docs, or other formats
-5. Nested structures beyond 2 levels not supported
-
-Usage
-=====
-    from persona2hire.cv.parser import read_cv_file, validate_cv_data
-    
-    # Parse a CV file
-    cv_data = read_cv_file("path/to/cv.txt")
-    
-    # Validate required fields
-    is_valid, errors = validate_cv_data(cv_data)
-    
-    # Get summary
-    summary = get_cv_summary(cv_data)
+Limitations: Requires template structure (no free-form CVs), English labels
+only, max 3 work entries, no PDF/Word support.
 """
 
 import re

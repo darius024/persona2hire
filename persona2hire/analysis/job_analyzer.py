@@ -1,64 +1,20 @@
 """
 Job analysis and matching algorithms.
 
-This module provides the core scoring functionality for matching candidates to job sectors.
-It implements a rule-based scoring system with optional ML enhancement.
+Scores candidates (0-100+) across six categories plus personality bonus:
+- Education (25 pts): Qualification level, field match, university prestige
+- Work Experience (30 pts): Years, seniority, sector relevance
+- Skills (20 pts): Required/extra skills match, driving license
+- Languages (10 pts): Mother tongue tier, additional languages, proficiency
+- Soft Skills (10 pts): Communication, leadership, teamwork
+- Additional (5 pts): Publications, awards, projects
+- Personality Bonus (+5 pts): MBTI match with sector preferences
 
-Scoring Overview
-================
-The system calculates a total score (0-100+) by evaluating six categories:
+Each sector (job_sectors.py) defines keyword lists for matching. CV text is
+normalized and matched against these lists. Optional ML adjustment (±30%)
+can refine scores based on learned patterns.
 
-1. Education (25 pts max): Qualification level, field match, university prestige
-2. Work Experience (30 pts max): Years, seniority, sector relevance  
-3. Skills (20 pts max): Required skills match, extra skills, driving license
-4. Languages (10 pts max): Mother tongue tier, additional languages, proficiency
-5. Soft Skills (10 pts max): Communication, leadership, teamwork, etc.
-6. Additional (5 pts max): Publications, awards, projects, presentations
-
-Plus a personality bonus (+5 pts) if MBTI type matches the sector's preferences.
-
-How Matching Works
-==================
-Each job sector (defined in job_sectors.py) contains keyword lists:
-- School/College: Education-related keywords
-- WorkExperience: Job titles, industries, activities
-- Skills: Required technical skills
-- ExtraSkills: Nice-to-have advanced skills
-- Personality: Preferred MBTI types
-
-Scoring functions extract relevant CV fields, normalize text (lowercase, strip),
-and count matches against these keyword lists. Match counts are converted to
-normalized scores using the category weights defined in WEIGHTS.
-
-ML Enhancement (Optional)
-=========================
-When enabled, the ML model provides an adjustment factor (±30% max) that
-refines the rule-based score based on learned patterns. This hybrid approach
-ensures explainable baselines while allowing data-driven refinement.
-
-Usage
-=====
-    from persona2hire.analysis.job_analyzer import analyze_job, analyze_jobs
-    
-    # Single sector analysis
-    score = analyze_job(cv_data, "Computers_ICT")
-    
-    # All sectors ranked
-    ranked_jobs = analyze_jobs(cv_data)  # Returns [(sector, score), ...]
-    
-    # Detailed breakdown
-    breakdown = get_score_breakdown(cv_data, sector)
-    
-    # Skill gap analysis
-    gaps = get_skill_gaps(cv_data, sector)
-
-Known Limitations
-=================
-- Keyword matching is exact (no synonyms, fuzzy matching)
-- Equal weighting of old vs recent experience
-- Skills claims are not verified
-- No consideration of company prestige/size
-- Cultural/regional variations not captured
+Limitations: Exact keyword matching only, no recency weighting, unverified claims.
 """
 
 from datetime import date
@@ -118,6 +74,7 @@ def get_ml_pipeline():
     if _ml_pipeline is None:
         try:
             from ..ml.pipeline import MLPipeline, PipelineConfig
+
             config = PipelineConfig()
             _ml_pipeline = MLPipeline(config=config, sector_data=JobSectors)
         except Exception:
@@ -129,10 +86,16 @@ def get_ml_pipeline():
 def is_ml_available() -> bool:
     """Check if ML scoring is available and trained."""
     pipeline = get_ml_pipeline()
-    return pipeline is not None and pipeline.model is not None and pipeline.model.is_trained
+    return (
+        pipeline is not None
+        and pipeline.model is not None
+        and pipeline.model.is_trained
+    )
 
 
-def analyze_job(person: dict, sector: str, personality_type: str = None, use_ml: bool = None) -> float:
+def analyze_job(
+    person: dict, sector: str, personality_type: str = None, use_ml: bool = None
+) -> float:
     """
     Analyze a person's fit for a specific job sector.
 
